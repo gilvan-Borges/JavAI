@@ -1,0 +1,24 @@
+# Maven / Java
+target/
+*.class
+hs_err_pid*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Ambiente e segredos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Modelos de embeddings (baixados no build e conferidos por SHA-256, não versionados)
+models/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
