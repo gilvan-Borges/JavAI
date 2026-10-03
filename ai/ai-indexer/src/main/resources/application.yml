@@ -37,3 +37,4 @@ indexer:
   max-repo-size-kb: ${INDEXER_MAX_REPO_SIZE_KB:51200}
   model-dir: ${INDEXER_MODEL_DIR:/models}
   embedding-threads: ${INDEXER_EMBEDDING_THREADS:2}
+  repo-min-interval: ${INDEXER_REPO_MIN_INTERVAL:PT30M}

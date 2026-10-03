@@ -1,11 +1,20 @@
 package br.com.gilvanborges.javai.ai.indexer.repo;
 
 import java.util.List;
+import java.util.Optional;
 
 /** Porta: de onde vêm os arquivos de um repositório. A implementação real clona do GitHub; os testes usam uma local. */
 public interface RepoSource {
 
     RepoRead read(String fullName);
+
+    /**
+     * O commit mais recente do branch padrão, para saber se o repositório mudou sem clonar. Vazio quando não dá para
+     * saber (rede, limite da API, repositório sumiu): quem chama trata como "não mudou" e tenta de novo depois.
+     */
+    default Optional<String> head(String fullName) {
+        return Optional.empty();
+    }
 
     /** Um arquivo aprovado pelo filtro e limpo de segredos. */
     record RepoFile(String path, String content) {

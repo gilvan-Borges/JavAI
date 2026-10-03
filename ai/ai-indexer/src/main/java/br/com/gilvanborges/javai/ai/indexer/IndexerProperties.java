@@ -15,6 +15,7 @@ import java.time.Duration;
  * @param modelDir          pasta do modelo de embeddings (baixado e verificado por SHA-256 na primeira vez)
  * @param githubApiBase     base da API do GitHub, só para ler os metadados do repositório
  * @param githubCloneBase   base dos clones; o repositório é sempre {@code <base><dono>/<nome>.git}
+ * @param repoMinInterval   intervalo mínimo entre duas reindexações disparadas por commit novo num repositório
  */
 @ConfigurationProperties("indexer")
 public record IndexerProperties(
@@ -25,5 +26,6 @@ public record IndexerProperties(
         @DefaultValue("/models") String modelDir,
         @DefaultValue("2") int embeddingThreads,
         @DefaultValue("https://api.github.com") String githubApiBase,
-        @DefaultValue("https://github.com/") String githubCloneBase) {
+        @DefaultValue("https://github.com/") String githubCloneBase,
+        @DefaultValue("PT30M") Duration repoMinInterval) {
 }

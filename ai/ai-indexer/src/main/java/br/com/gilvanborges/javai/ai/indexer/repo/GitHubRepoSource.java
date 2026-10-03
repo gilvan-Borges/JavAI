@@ -29,6 +29,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -50,6 +53,8 @@ public class GitHubRepoSource implements RepoSource {
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
     private final JsonMapper json = JsonMapper.builder().build();
+    /** ETag e commit já vistos por repositório: com {@code If-None-Match} o GitHub responde 304, que não gasta o limite da API. */
+    private final Map<String, String[]> heads = new ConcurrentHashMap<>();
 
     public GitHubRepoSource(IndexerProperties properties) {
         this.properties = properties;
@@ -83,6 +88,39 @@ public class GitHubRepoSource implements RepoSource {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return RepoRead.skipped(fullName, "leitura interrompida");
+        }
+    }
+
+    @Override
+    public Optional<String> head(String fullName) {
+        if (!FULL_NAME.matcher(fullName).matches()) {
+            return Optional.empty();
+        }
+        try {
+            var request = HttpRequest.newBuilder(URI.create(
+                            properties.githubApiBase().replaceAll("/+$", "") + "/repos/" + fullName + "/commits/HEAD"))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("Accept", "application/vnd.github.sha")
+                    .header("X-GitHub-Api-Version", "2022-11-28");
+            String[] known = heads.get(fullName);
+            if (known != null) {
+                request.header("If-None-Match", known[0]);
+            }
+            HttpResponse<String> response = http.send(request.GET().build(), HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 304 && known != null) {
+                return Optional.of(known[1]);
+            }
+            String sha = response.body() == null ? "" : response.body().strip();
+            if (response.statusCode() != 200 || !sha.matches("[0-9a-f]{40}")) {
+                return Optional.empty();
+            }
+            response.headers().firstValue("ETag").ifPresent(etag -> heads.put(fullName, new String[]{etag, sha}));
+            return Optional.of(sha);
+        } catch (IOException e) {
+            return Optional.empty();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
         }
     }
 

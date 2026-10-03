@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -19,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Uma execução do indexador (spec 01, "Indexador"): lê o snapshot do CRUD, lê os repositórios ligados, monta o
@@ -52,6 +55,11 @@ public class IndexerService {
     private final JsonMapper json;
     private final IndexerProperties properties;
     private final AtomicBoolean running = new AtomicBoolean();
+    /** Quando a última reindexação disparada por commit novo começou: segura um repositório que recebe commits a toda hora. */
+    private final AtomicReference<Instant> lastRepoTriggered = new AtomicReference<>(Instant.EPOCH);
+    private static final String REPO_KEY = "repo:";
+    /** Marca que o índice registrou o commit de cada repositório; sem ela, é um índice de antes desta conferência. */
+    private static final String TRACKED_KEY = "repos:tracked";
 
     public IndexerService(SnapshotClient snapshots, RepoSource repos, EmbedderProvider embedders, IndexStore store,
                           JsonMapper json, IndexerProperties properties) {
@@ -79,9 +87,23 @@ public class IndexerService {
                 fetched.put(lang, snapshots.fetch(lang, previous.get(lang)));
             }
             if (fetched.values().stream().allMatch(SnapshotClient.Fetch::notModified)) {
-                var report = Map.<String, Object>of("motivo", "o snapshot não mudou");
-                store.finishJob(job, "skipped", null, report);
-                return new Outcome("skipped", null, report);
+                // O snapshot do CRUD não mudou, mas os repositórios podem ter recebido commit: confere o HEAD de cada um.
+                List<String> changed = previous.containsKey(TRACKED_KEY) ? repositoriesWithNewCommits(previous)
+                        : List.of("(índice anterior não registrava os commits)");
+                if (changed.isEmpty()) {
+                    var report = Map.<String, Object>of("motivo", "o snapshot e os repositórios não mudaram");
+                    store.finishJob(job, "skipped", null, report);
+                    return new Outcome("skipped", null, report);
+                }
+                Duration sinceLast = Duration.between(lastRepoTriggered.get(), Instant.now());
+                if (sinceLast.compareTo(properties.repoMinInterval()) < 0) {
+                    var report = Map.<String, Object>of("motivo", "repositórios com commit novo, aguardando o intervalo mínimo",
+                            "repositorios", changed);
+                    store.finishJob(job, "skipped", null, report);
+                    return new Outcome("skipped", null, report);
+                }
+                lastRepoTriggered.set(Instant.now());
+                LOG.info("Commit novo em {}: reindexando.", changed);
             }
             // Mudou num idioma: precisamos dos dois inteiros, então o que respondeu 304 é lido de novo.
             for (String lang : LANGS) {
@@ -98,6 +120,10 @@ public class IndexerService {
             });
 
             var repoReads = linkedRepositories(data).stream().map(repos::read).toList();
+            // O commit lido de cada repositório entra junto com os ETags do snapshot: é com ele que o próximo ciclo compara.
+            etags.put(TRACKED_KEY, "1");
+            repoReads.stream().filter(r -> !r.wasSkipped() && r.commitSha() != null)
+                    .forEach(r -> etags.put(REPO_KEY + r.fullName(), r.commitSha()));
             Optional<br.com.gilvanborges.javai.ai.core.embedding.Embedder> embedder = embedders.get();
             var built = new IndexBuilder(properties.maxChunksPerRepo()).build(data, repoReads, embedder);
 
@@ -132,6 +158,18 @@ public class IndexerService {
         var names = new LinkedHashSet<String>();
         data.values().forEach(s -> s.repositories().forEach(r -> names.add(r.fullName())));
         return List.copyOf(names);
+    }
+
+    /** Os repositórios que a versão ativa leu e cujo commit mais recente no GitHub já é outro. */
+    private List<String> repositoriesWithNewCommits(Map<String, String> previous) {
+        var changed = new java.util.ArrayList<String>();
+        previous.forEach((key, knownSha) -> {
+            if (key.startsWith(REPO_KEY)) {
+                String name = key.substring(REPO_KEY.length());
+                repos.head(name).filter(current -> !current.equals(knownSha)).ifPresent(current -> changed.add(name));
+            }
+        });
+        return changed;
     }
 
     private Map<String, String> previousEtags() {

@@ -162,7 +162,7 @@ class GitHubRepoSourceTest {
     private GitHubRepoSource source() {
         return new GitHubRepoSource(new IndexerProperties(
                 "http://127.0.0.1:1", Duration.ofMinutes(5), 51_200, 300, work.resolve("model").toString(), 1,
-                "http://127.0.0.1:" + api.getAddress().getPort(), work.resolve("origem").toUri().toString()));
+                "http://127.0.0.1:" + api.getAddress().getPort(), work.resolve("origem").toUri().toString(), Duration.ZERO));
     }
 
     /** Cria um repositório com os arquivos dados e o expõe como {@code <origem>/dono/projeto.git}, para o clone. */

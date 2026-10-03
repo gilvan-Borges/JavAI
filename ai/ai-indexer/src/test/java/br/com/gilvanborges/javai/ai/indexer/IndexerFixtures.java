@@ -28,11 +28,15 @@ public final class IndexerFixtures {
     }
 
     public static RepoSource.RepoRead repo(String fullName, String... pathsAndContents) {
+        return repoAt(fullName, "a".repeat(40), pathsAndContents);
+    }
+
+    public static RepoSource.RepoRead repoAt(String fullName, String commitSha, String... pathsAndContents) {
         var files = new java.util.ArrayList<RepoSource.RepoFile>();
         for (int i = 0; i < pathsAndContents.length; i += 2) {
             files.add(new RepoSource.RepoFile(pathsAndContents[i], pathsAndContents[i + 1]));
         }
-        return new RepoSource.RepoRead(fullName, "a".repeat(40), files, null, List.of());
+        return new RepoSource.RepoRead(fullName, commitSha, files, null, List.of());
     }
 
     /** Embedder de mentira: um vetor de tamanho fixo e determinístico, sem modelo nenhum. */

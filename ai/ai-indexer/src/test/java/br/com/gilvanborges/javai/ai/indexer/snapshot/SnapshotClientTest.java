@@ -123,6 +123,6 @@ class SnapshotClientTest {
 
     private static IndexerProperties properties(String baseUrl) {
         return new IndexerProperties(baseUrl, Duration.ofMinutes(5), 51_200, 300, "/models", 1,
-                "https://api.github.com", "https://github.com/");
+                "https://api.github.com", "https://github.com/", java.time.Duration.ZERO);
     }
 }

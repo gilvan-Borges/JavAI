@@ -65,7 +65,7 @@ class IndexerServiceIntegrationTest {
         repos = new FakeRepos();
         embedders = new FakeEmbedders(Optional.of(fakeEmbedder(384)));
         var props = new IndexerProperties("http://127.0.0.1:1", Duration.ofMinutes(5), 51_200, 300, "/nada", 1,
-                "https://api.github.com", "https://github.com/");
+                "https://api.github.com", "https://github.com/", java.time.Duration.ZERO);
         service = new IndexerService(snapshots, repos, embedders, store, json, props);
     }
 
@@ -109,6 +109,41 @@ class IndexerServiceIntegrationTest {
         try (var indexer = TestDatabase.connect(db, db.indexer())) {
             assertThat(strings(indexer, "SELECT status FROM index.version ORDER BY id")).containsExactly("retired", "active");
         }
+    }
+
+    @Test
+    void commit_novo_num_repositorio_reindexa_mesmo_com_o_snapshot_igual_e_sem_commit_novo_pula() throws Exception {
+        service.run(IndexerService.Trigger.AGENDADO);
+        snapshots.notModified = true;
+
+        assertThat(service.run(IndexerService.Trigger.SNAPSHOT).status()).isEqualTo("skipped");
+
+        repos.head = "b".repeat(40);
+        var outcome = service.run(IndexerService.Trigger.SNAPSHOT);
+
+        assertThat(outcome.status()).isEqualTo("succeeded");
+        try (var indexer = TestDatabase.connect(db, db.indexer())) {
+            assertThat(strings(indexer, "SELECT status FROM index.version ORDER BY id")).containsExactly("retired", "active");
+        }
+        // O commit novo ficou registrado: o ciclo seguinte volta a pular.
+        assertThat(service.run(IndexerService.Trigger.SNAPSHOT).status()).isEqualTo("skipped");
+    }
+
+    @Test
+    void repositorio_que_recebe_commit_a_toda_hora_respeita_o_intervalo_minimo() throws Exception {
+        var slow = new IndexerProperties("http://127.0.0.1:1", Duration.ofMinutes(5), 51_200, 300, "/nada", 1,
+                "https://api.github.com", "https://github.com/", Duration.ofHours(1));
+        var guarded = new IndexerService(snapshots, repos, embedders, store, json, slow);
+        guarded.run(IndexerService.Trigger.AGENDADO);
+        snapshots.notModified = true;
+
+        repos.head = "b".repeat(40);
+        assertThat(guarded.run(IndexerService.Trigger.SNAPSHOT).status()).isEqualTo("succeeded");
+        repos.head = "c".repeat(40);
+        var held = guarded.run(IndexerService.Trigger.SNAPSHOT);
+
+        assertThat(held.status()).isEqualTo("skipped");
+        assertThat(held.report().get("motivo").toString()).contains("intervalo mínimo");
     }
 
     @Test
@@ -190,7 +225,7 @@ class IndexerServiceIntegrationTest {
 
         FakeSnapshots() {
             super(new IndexerProperties("http://127.0.0.1:1", Duration.ofMinutes(5), 51_200, 300, "/nada", 1,
-                    "https://api.github.com", "https://github.com/"));
+                    "https://api.github.com", "https://github.com/", java.time.Duration.ZERO));
         }
 
         @Override
@@ -207,13 +242,19 @@ class IndexerServiceIntegrationTest {
 
     static class FakeRepos implements RepoSource {
         boolean skip;
+        String head = "a".repeat(40);
+
+        @Override
+        public Optional<String> head(String fullName) {
+            return Optional.ofNullable(head);
+        }
 
         @Override
         public RepoRead read(String fullName) {
             if (skip) {
                 return RepoRead.skipped(fullName, "repositório é fork");
             }
-            return IndexerFixtures.repo(fullName,
+            return IndexerFixtures.repoAt(fullName, head,
                     "README.md", "# apiSuporte\nMicrosserviço de tickets com RabbitMQ.",
                     "pom.xml", "<dependency><artifactId>spring-boot-starter-amqp</artifactId></dependency>");
         }
@@ -224,7 +265,7 @@ class IndexerServiceIntegrationTest {
 
         FakeEmbedders(Optional<Embedder> embedder) {
             super(new IndexerProperties("http://127.0.0.1:1", Duration.ofMinutes(5), 51_200, 300, "/nada", 1,
-                    "https://api.github.com", "https://github.com/"));
+                    "https://api.github.com", "https://github.com/", java.time.Duration.ZERO));
             this.embedder = embedder;
         }
 

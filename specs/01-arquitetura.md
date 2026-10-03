@@ -92,9 +92,14 @@ Em [03](03-contrato-api.md#api-do-admin-admingilvanborgescombr): Cloudflare Acce
 
 ### Como a IA fica sabendo de conteúdo novo
 
-O `ai-indexer` faz um GET condicional no snapshot a cada 5 minutos, com `If-None-Match`. Se a resposta for 304, não faz nada. Se vier um snapshot novo, reindexa.
+A cada 5 minutos o `ai-indexer` faz duas conferências baratas, as duas com GET condicional (`If-None-Match`), e um 304 não gasta o limite da API do GitHub:
 
-O GitHub é reindexado todo dia às 03:00 (horário de São Paulo). Sem webhook, o CRUD continua sem saber que a IA existe.
+1. **O snapshot do CRUD.** Se vier um snapshot novo, reindexa.
+2. **O HEAD de cada repositório ligado** (`GET /repos/{dono}/{nome}/commits/HEAD`, sem token). O commit lido na última indexação fica guardado junto com os ETags da versão ativa; se o HEAD for outro, reindexa. Assim um `git push` num repositório aparece na IA em até uns 35 minutos, sem webhook.
+
+Um repositório que recebe commit a toda hora não derruba o indexador: a reindexação disparada por commit só acontece a cada `INDEXER_REPO_MIN_INTERVAL` (30 min por padrão). Se a conferência falhar (rede, limite da API), o repositório conta como "não mudou" e a próxima volta tenta de novo.
+
+Todo dia às 03:00 (horário de São Paulo) ele reindexa tudo de qualquer jeito, como rede de segurança. Sem webhook, o CRUD continua sem saber que a IA existe.
 
 ### Indexador (`ai-indexer`)
 

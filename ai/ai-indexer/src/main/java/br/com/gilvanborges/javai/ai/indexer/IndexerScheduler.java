@@ -6,9 +6,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Quando o indexador roda. A cada poucos minutos ele só confere se o snapshot mudou (GET condicional, quase de
- * graça); todo dia às 03:00 ele reindexa tudo, o que também atualiza o conteúdo dos repositórios do GitHub.
- * O CRUD não avisa a IA de nada: ela mesma olha (spec 01).
+ * Quando o indexador roda. A cada poucos minutos ele confere (de graça, com GET condicional) se o snapshot do CRUD
+ * mudou e se algum repositório ligado recebeu commit novo; se sim, reindexa. Todo dia às 03:00 ele reindexa tudo
+ * de qualquer jeito, como rede de segurança. O CRUD não avisa a IA de nada: ela mesma olha (spec 01).
  */
 @Component
 class IndexerScheduler {
