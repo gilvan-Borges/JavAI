@@ -7,7 +7,8 @@
 #   - tem limites altos e o próprio par de modelos, para comparar modelos sem mexer na produção;
 #   - lê o índice com o mesmo papel ai_reader e roda endurecida (somente leitura, sem capabilities).
 #
-# Uso (na VPS, como root):  eval-instance.sh up <porta> <modelos-rapidos> <modelos-fortes>
+# Opcionais (variáveis de ambiente): EVAL_REASONING=low|minimal|... e EVAL_MAX_TOKENS=800, para modelos de raciocínio.
+# Uso (na VPS, como root):  eval-instance.sh up <porta> <modelos-rapidos> <modelos-fortes> [teto-preco-saida]
 #                           eval-instance.sh down <porta>
 set -euo pipefail
 
@@ -46,8 +47,9 @@ docker run -d --name "$name" \
   -e AIAPI_CHAT_HISTORY_SECRET="$(openssl rand -hex 24)" \
   -e AIAPI_CHAT_MODELS_FAST="$fast" \
   -e AIAPI_CHAT_MODELS_STRONG="$strong" \
-  -e AIAPI_CHAT_MAX_PRICE_COMPLETION="${JAVAI_MAX_PRICE_COMPLETION:-1}" \
+  -e AIAPI_CHAT_MAX_PRICE_COMPLETION="${5:-${JAVAI_MAX_PRICE_COMPLETION:-1}}" \
   -e AIAPI_CHAT_DAILY_BUDGET_USD=5 \
+  ${EVAL_REASONING:+-e AIAPI_CHAT_REASONING_EFFORT=$EVAL_REASONING} ${EVAL_MAX_TOKENS:+-e AIAPI_CHAT_MAX_TOKENS=$EVAL_MAX_TOKENS} \
   -e AIAPI_CHAT_PER_MINUTE=1000 -e AIAPI_CHAT_PER_DAY=100000 \
   "ghcr.io/gilvan-borges/javai-ai-api:${JAVAI_TAG}" >/dev/null
 docker network connect javai_ai-data "$name"

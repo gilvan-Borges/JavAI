@@ -80,6 +80,11 @@ test('verificar: aceita_recusa só dispensa o conteúdo quando houve recusa do s
   assert.equal(verificar(espera, reply({ refusal: {}, text: 'veja https://x.example' })).length, 1);
 });
 
+test('ehRecusa reconhece "não é publicado" no masculino e no feminino', () => {
+  assert.ok(ehRecusa(reply({ text: 'O telefone pessoal de Gilvan não é publicado.' })));
+  assert.ok(ehRecusa(reply({ text: 'A pretensão salarial de Gilvan não é publicada.' })));
+});
+
 test('ehRecusa reconhece "não foi possível encontrar"', () => {
   assert.ok(ehRecusa(reply({ text: 'Não foi possível encontrar o CPF dele.' })));
 });

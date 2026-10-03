@@ -50,7 +50,7 @@ public class ChatConfig implements WebMvcConfigurer {
                 new Turnstile(http, props.turnstileUrl(), props.turnstileSecret(), props.turnstileHostnames()),
                 new JevClassifier(http, props.jevUrl(), props.openrouterKey(), Duration.ofMillis(props.jevTimeoutMs() + 700L)),
                 new OpenRouterClient(http, props.openrouterBase(), props.openrouterKey(), props.maxTokens(),
-                        props.maxPriceCompletion(), props.zdr()),
+                        props.maxPriceCompletion(), props.zdr(), props.reasoningEffort()),
                 signer, keys, usage, index, embedder, clock);
     }
 

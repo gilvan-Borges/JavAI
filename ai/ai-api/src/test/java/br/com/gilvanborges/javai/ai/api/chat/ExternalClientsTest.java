@@ -67,7 +67,7 @@ class ExternalClientsTest {
     }
 
     private OpenRouterClient router(BigDecimal maxPrice, boolean zdr) {
-        return new OpenRouterClient(http, base + "/api/v1", "sk-test", 300, maxPrice, zdr);
+        return new OpenRouterClient(http, base + "/api/v1", "sk-test", 300, maxPrice, zdr, "");
     }
 
     private static final PromptBuilder.Prompt PROMPT = new PromptBuilder.Prompt("sistema", "usuario");
@@ -109,6 +109,21 @@ class ExternalClientsTest {
         JsonNode provider = JSON.readTree(lastBody.get()).get("provider");
         assertThat(provider.has("zdr")).isFalse();
         assertThat(provider.has("max_price")).isFalse();
+    }
+
+    @Test
+    void openrouter_manda_o_esforco_de_raciocinio_so_quando_configurado() throws Exception {
+        respond("/api/v1/chat/completions", 200, "text/event-stream", sse("{\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}"));
+
+        new OpenRouterClient(http, base + "/api/v1", "sk-test", 800, BigDecimal.ZERO, false, "low")
+                .stream(PROMPT, List.of("a/m1"), d -> true);
+
+        JsonNode body = JSON.readTree(lastBody.get());
+        assertThat(body.get("reasoning").get("effort").asString()).isEqualTo("low");
+        assertThat(body.get("max_tokens").asInt()).isEqualTo(800);
+
+        router(BigDecimal.ZERO, false).stream(PROMPT, List.of("a/m1"), d -> true);
+        assertThat(JSON.readTree(lastBody.get()).has("reasoning")).isFalse();
     }
 
     @Test

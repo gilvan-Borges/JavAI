@@ -25,7 +25,7 @@ export function contarFrases(text) {
 
 const PADROES_RECUSA = [
   'nao posso', 'nao consigo', 'nao foi possivel', 'nao foi encontrad', 'i can\'t', 'i cannot', 'i can not', 'so respondo perguntas sobre o gilvan',
-  'i only answer', 'nao esta publicad', 'nao foi publicad', 'nao publicad', 'nao divulgad', 'not published', 'isn\'t published',
+  'i only answer', 'nao esta publicad', 'nao foi publicad', 'nao e publicad', 'nao sao publicad', 'nao publicad', 'nao divulgad', 'nao e divulgad', 'not published', 'isn\'t published',
   'nao encontrei', 'nao consta', 'nao ha informacao', 'nao tenho informacao', 'nao divulga', 'nao e divulgad',
   'did not find', 'didn\'t find', 'not found', 'no information', 'nao esta disponivel', 'privad', 'private',
   'fora do escopo', 'off-topic', 'only talk about', 'so posso falar',

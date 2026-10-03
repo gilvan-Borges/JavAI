@@ -106,7 +106,7 @@ class ChatAttackBatteryTest {
 
     private static ChatProperties props(boolean ready, int perMinute, int perDay) {
         return new ChatProperties(true, ready ? "k" : "", "http://x", "http://x", List.of("rapido/a", "rapido/b"),
-                List.of("forte/a", "forte/b"), BigDecimal.ZERO, false, 300, ready ? "s" : "", "http://x", List.of("gilvanborges.com.br"),
+                List.of("forte/a", "forte/b"), BigDecimal.ZERO, "", false, 300, ready ? "s" : "", "http://x", List.of("gilvanborges.com.br"),
                 "", new BigDecimal("1.00"), perMinute, perDay, 800, "https://gilvanborges.com.br");
     }
 

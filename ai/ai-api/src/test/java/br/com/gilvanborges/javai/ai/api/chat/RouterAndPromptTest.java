@@ -20,8 +20,8 @@ class RouterAndPromptTest {
     void ataque_e_fora_do_escopo_recusam_sem_chamar_modelo_a_partir_dos_limiares() {
         assertThat(decide(Category.ATAQUE, 0.5).action()).isEqualTo(Router.Action.REFUSE);
         assertThat(decide(Category.ATAQUE, 0.49).action()).isEqualTo(Router.Action.ANSWER);
-        assertThat(decide(Category.FORA_DO_ESCOPO, 0.6).action()).isEqualTo(Router.Action.REFUSE);
-        assertThat(decide(Category.FORA_DO_ESCOPO, 0.59).action()).isEqualTo(Router.Action.ANSWER);
+        assertThat(decide(Category.FORA_DO_ESCOPO, 0.80).action()).isEqualTo(Router.Action.REFUSE);
+        assertThat(decide(Category.FORA_DO_ESCOPO, 0.79).action()).isEqualTo(Router.Action.ANSWER);
     }
 
     @Test

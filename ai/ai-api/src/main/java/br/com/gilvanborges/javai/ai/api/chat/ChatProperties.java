@@ -14,6 +14,7 @@ import java.util.List;
  * @param openrouterKey       chave do OpenRouter, usada no chat e no Jev (que também passa pelo OpenRouter)
  * @param modelsFast          modelos do nível {@code rapido}, o principal primeiro; o resto é fallback
  * @param modelsStrong        modelos do nível {@code forte}
+ * @param reasoningEffort esforço de raciocínio enviado ao OpenRouter ("minimal", "low", "medium", "high"); vazio = não envia. Modelos de raciocínio gastam os tokens da resposta pensando.
  * @param zdr                 exige provedores com retenção zero de dados ("quando possível": pode excluir modelos)
  * @param maxPriceCompletion  teto de preço por milhão de tokens de saída, em dólares; 0 = sem teto do provedor
  * @param turnstileSecret     chave secreta do Turnstile
@@ -34,6 +35,7 @@ public record ChatProperties(
         @DefaultValue("") List<String> modelsFast,
         @DefaultValue("") List<String> modelsStrong,
         @DefaultValue("0") BigDecimal maxPriceCompletion,
+        @DefaultValue("") String reasoningEffort,
         @DefaultValue("false") boolean zdr,
         @DefaultValue("300") int maxTokens,
         @DefaultValue("") String turnstileSecret,

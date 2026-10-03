@@ -8,7 +8,12 @@ import java.util.Optional;
  */
 public final class Router {
 
-    static final double OFF_TOPIC_THRESHOLD = 0.6;
+    /**
+     * Calibrado com a bateria real (evals/relatorios): perguntas legítimas que o Jev confundiu com "fora do escopo"
+     * tiveram confiança de 0,57 a 0,79; as realmente fora do escopo, de 0,81 a 0,99. Abaixo disso a pergunta segue
+     * e o prompt do modelo (regra 7) ainda a mantém no tema.
+     */
+    static final double OFF_TOPIC_THRESHOLD = 0.80;
     static final double ATTACK_THRESHOLD = 0.5;
 
     public enum Action { ANSWER, REFUSE }

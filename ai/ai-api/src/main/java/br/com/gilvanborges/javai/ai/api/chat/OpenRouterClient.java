@@ -33,14 +33,17 @@ public class OpenRouterClient implements ChatModel {
     private final int maxTokens;
     private final BigDecimal maxPriceCompletion;
     private final boolean zdr;
+    private final String reasoningEffort;
 
-    public OpenRouterClient(HttpClient http, String baseUrl, String key, int maxTokens, BigDecimal maxPriceCompletion, boolean zdr) {
+    public OpenRouterClient(HttpClient http, String baseUrl, String key, int maxTokens, BigDecimal maxPriceCompletion, boolean zdr,
+                            String reasoningEffort) {
         this.http = http;
         this.baseUrl = baseUrl;
         this.key = key;
         this.maxTokens = maxTokens;
         this.maxPriceCompletion = maxPriceCompletion;
         this.zdr = zdr;
+        this.reasoningEffort = reasoningEffort == null ? "" : reasoningEffort;
     }
 
     @Override
@@ -116,6 +119,9 @@ public class OpenRouterClient implements ChatModel {
         body.put("stream", true);
         body.put("max_tokens", maxTokens);
         body.put("usage", Map.of("include", true));
+        if (!reasoningEffort.isBlank()) {
+            body.put("reasoning", Map.of("effort", reasoningEffort));
+        }
         body.put("provider", provider);
         return body;
     }
