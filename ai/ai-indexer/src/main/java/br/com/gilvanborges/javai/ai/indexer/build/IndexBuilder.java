@@ -45,6 +45,15 @@ public final class IndexBuilder {
     }
 
     public Built build(Map<String, SnapshotData> snapshots, List<RepoSource.RepoRead> repos, Optional<Embedder> embedder) {
+        return build(snapshots, repos, List.of(), List.of(), embedder);
+    }
+
+    /**
+     * @param sourceChunks trechos das fontes públicas (site, documentos, perfil do GitHub)
+     * @param sourceStatus uma linha por fonte pública, copiada para o relatório
+     */
+    public Built build(Map<String, SnapshotData> snapshots, List<RepoSource.RepoRead> repos, List<Chunk> sourceChunks,
+                       List<Map<String, Object>> sourceStatus, Optional<Embedder> embedder) {
         var chunks = new ArrayList<Chunk>();
         var evidence = new LinkedHashMap<String, Evidence>();
         var report = new LinkedHashMap<String, Object>();
@@ -57,6 +66,8 @@ public final class IndexBuilder {
             chunks.addAll(fromSnapshot);
             snapshotChunks += fromSnapshot.size();
         }
+
+        chunks.addAll(sourceChunks);
 
         int repoChunks = 0;
         int repoFiles = 0;
@@ -90,6 +101,8 @@ public final class IndexBuilder {
 
         report.put("trechosDoSnapshot", snapshotChunks);
         report.put("trechosDeRepositorios", repoChunks);
+        report.put("trechosDeFontes", sourceChunks.size());
+        report.put("fontes", List.copyOf(sourceStatus));
         report.put("arquivosLidos", repoFiles);
         report.put("repositoriosLidos", List.copyOf(readRepos));
         report.put("repositoriosPulados", List.copyOf(skipped));

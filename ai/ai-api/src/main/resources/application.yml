@@ -49,3 +49,7 @@ aiapi:
   reload-interval: ${AIAPI_RELOAD_INTERVAL:PT30S}
   model-dir: ${AIAPI_MODEL_DIR:/models}
   embedding-threads: ${AIAPI_EMBEDDING_THREADS:2}
+  admin:
+    # Porta interna do ai-indexer para o botão "reindexar". Sem token o botão some e a página só avisa.
+    indexer-url: ${AIAPI_ADMIN_INDEXER_URL:http://ai-indexer:8080}
+    indexer-token: ${AIAPI_ADMIN_INDEXER_TOKEN:}

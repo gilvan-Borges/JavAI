@@ -242,6 +242,20 @@ class DatabaseAccessTest {
         }
     }
 
+    @Test
+    void teste09_fontes_publicas_tem_tipo_proprio_e_tipo_desconhecido_e_recusado() throws SQLException {
+        try (var indexer = as(db.indexer())) {
+            long versao = newVersion(indexer);
+            for (String tipo : new String[]{"site", "document", "github_profile"}) {
+                update(indexer, "INSERT INTO index.chunk (version_id, source_kind, source_ref, lang, title, body, url, body_hash) VALUES ("
+                        + versao + ", '" + tipo + "', 'ref', 'pt', 't', 'corpo', 'https://gilvanborges.com.br', 'h')");
+            }
+            assertThat(count(indexer, "SELECT count(*) FROM index.chunk WHERE source_kind IN ('site', 'document', 'github_profile')")).isEqualTo(3);
+            assertSqlState("23514", () -> update(indexer, "INSERT INTO index.chunk (version_id, source_kind, source_ref, lang, title, body, url, body_hash) VALUES ("
+                    + versao + ", 'inventado', 'ref', 'pt', 't', 'corpo', 'https://gilvanborges.com.br', 'h')"));
+        }
+    }
+
     // --- helpers -------------------------------------------------------------------------------------------
 
     private static Connection as(Credentials who) throws SQLException {

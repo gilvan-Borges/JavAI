@@ -38,3 +38,16 @@ indexer:
   model-dir: ${INDEXER_MODEL_DIR:/models}
   embedding-threads: ${INDEXER_EMBEDDING_THREADS:2}
   repo-min-interval: ${INDEXER_REPO_MIN_INTERVAL:PT30M}
+  # Token da porta interna usada pelo botão "reindexar" do /admin. Vazio = porta desligada (404).
+  trigger-token: ${INDEXER_TRIGGER_TOKEN:}
+  sources:
+    site-url: ${INDEXER_SOURCES_SITE_URL:}
+    site-documents: ${INDEXER_SOURCES_SITE_DOCUMENTS:}
+    documents: ${INDEXER_SOURCES_DOCUMENTS:}
+    github-users: ${INDEXER_SOURCES_GITHUB_USERS:}
+    github-repos: ${INDEXER_SOURCES_GITHUB_REPOS:}
+    github-discover: ${INDEXER_SOURCES_GITHUB_DISCOVER:false}
+    github-exclude: ${INDEXER_SOURCES_GITHUB_EXCLUDE:}
+    github-max-repos: ${INDEXER_SOURCES_GITHUB_MAX_REPOS:30}
+    linkedin-url: ${INDEXER_SOURCES_LINKEDIN_URL:}
+    check-interval: ${INDEXER_SOURCES_CHECK_INTERVAL:PT30M}

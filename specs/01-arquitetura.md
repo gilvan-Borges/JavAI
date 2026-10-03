@@ -153,6 +153,31 @@ Todo dia às 03:00 (horário de São Paulo) ele reindexa tudo de qualquer jeito,
 - **O que cada evidência aponta:** repositório, arquivo, linha e URL.
 - **Habilidade sem evidência:** se ela foi declarada no CRUD, aparece como "declarada, sem evidência pública".
 
+#### Fontes públicas configuráveis
+
+Além do snapshot do CRUD e dos repositórios ligados nele, o indexador lê **fontes públicas configuradas por propriedade**
+(`indexer.sources.*`, no `.env` como `INDEXER_SOURCES_*`). Quem clonar o projeto troca os endereços pelos seus; o código não
+guarda nenhum valor do dono.
+
+| Propriedade | O que lê | Tipo do trecho |
+|---|---|---|
+| `site-documents` | texto, Markdown ou HTML (`llms.txt`, páginas) | `site` |
+| `documents` | PDF ou texto (o currículo); PDF por PDFBox, só texto | `document` |
+| `github-users` | perfil, README do perfil e lista de repositórios públicos | `github_profile` |
+| `github-repos` | repositórios extras (dono/nome), lidos como os do CRUD | `repo_*` |
+| `github-discover` (+ `exclude`, `max-repos`) | todos os públicos sem fork/arquivados do usuário; **desligado por padrão** | `repo_*` |
+| `site-url`, `linkedin-url` | só o link (o LinkedIn não permite leitura automática) | `site` / `document` |
+
+- **Literal, nunca reescrito:** cada trecho é um pedaço do texto da fonte, com o link dela. Nenhuma IA gera conteúdo do índice.
+- **Falha isolada:** uma fonte fora do ar vira linha de erro no relatório e as outras seguem.
+- **Mudança:** cada fonte guarda o SHA-256 do texto lido na versão (`src:<fonte>`); a cada `check-interval` (30 min) o indexador
+  relê e reindexa só se algum hash mudou ou se uma fonte nova foi configurada.
+- **Limites de leitura:** só https, 5 MB por fonte, 40 páginas de PDF, 40 s; as URLs vêm da configuração, nunca de visitante.
+- **Reset pelo painel:** `/admin/fontes` mostra a configuração, as últimas execuções e o resultado de cada fonte, e tem o botão
+  "Resetar e buscar tudo de novo". O botão chama a porta interna do indexador (`POST /internal/reindex`, token compartilhado
+  `INDEXER_TRIGGER_TOKEN`, rede interna do Docker, sem parâmetros) que roda uma execução `manual` completa. Exige a sessão do
+  admin e `Sec-Fetch-Site: same-origin`. Se a indexação falhar, a versão ativa continua.
+
 ### Fluxo de uma pergunta no chat (`ai-api`)
 
 ```

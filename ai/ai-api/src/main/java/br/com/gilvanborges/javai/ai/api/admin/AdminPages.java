@@ -46,6 +46,9 @@ final class AdminPages {
         KIND_LABEL.put(SourceKind.REPO_META, "Repositórios (ficha)");
         KIND_LABEL.put(SourceKind.REPO_README, "README dos repositórios");
         KIND_LABEL.put(SourceKind.REPO_FILE, "Arquivos de código");
+        KIND_LABEL.put(SourceKind.SITE, "Site (texto público)");
+        KIND_LABEL.put(SourceKind.DOCUMENT, "Documentos e links (currículo, LinkedIn)");
+        KIND_LABEL.put(SourceKind.GITHUB_PROFILE, "Perfil do GitHub");
     }
 
     private AdminPages() {
@@ -64,6 +67,7 @@ final class AdminPages {
                 + "<header><strong>JavAI · admin</strong><nav>"
                 + link("/admin", "Visão geral", active.equals("home"))
                 + link("/admin/trechos", "Trechos indexados", active.equals("trechos"))
+                + link("/admin/fontes", "Fontes e reindexação", active.equals("fontes"))
                 + link("/admin/busca", "Testar a busca", active.equals("busca"))
                 + "</nav><form method=\"post\" action=\"/admin/logout\"><button>Sair</button></form></header><main>" + body + "</main></body></html>";
     }
@@ -392,6 +396,97 @@ final class AdminPages {
         }
         String[] parts = c.sourceRef().split(":", 3);
         return parts.length >= 2 ? parts[1] : null;
+    }
+
+    // ------------------------------------------------------------------------------------------------ fontes públicas
+
+    /**
+     * A página "Fontes": de onde a IA tira o que sabe (configurado por propriedades), o resultado da leitura de cada
+     * fonte na última execução e o botão de reindexar tudo.
+     *
+     * @param status  resposta do indexador, ou {@code null} se ele não respondeu
+     * @param notice  mensagem do último clique no botão, ou vazio
+     */
+    static String sources(JsonNode status, String notice, boolean canTrigger) {
+        var b = new StringBuilder("<h1>Fontes públicas da IA</h1>");
+        b.append("<p class=\"dim\">Tudo vem de endereços públicos configurados por propriedade (<code>INDEXER_SOURCES_*</code> no <code>.env</code>). ")
+                .append("O texto entra no índice literalmente, com o link de origem: nada é reescrito por IA.</p>");
+        if (!notice.isEmpty()) {
+            b.append("<div class=\"note\">").append(esc(notice)).append("</div>");
+        }
+        if (status == null) {
+            b.append("<p class=\"warn\">O indexador não respondeu (ou a porta interna está desligada). Sem ele não dá para ver as fontes nem reindexar por aqui.</p>");
+            return layout("Fontes", "fontes", b.toString());
+        }
+        JsonNode cfg = status.path("fontes");
+        b.append("<h2>Configuração</h2><table><tr><th>Propriedade</th><th>Valor</th></tr>");
+        cfg.propertyNames().forEach(name -> {
+            JsonNode v = cfg.path(name);
+            String text = v.isArray() ? joinArray(v) : v.asString("");
+            b.append("<tr><td><code>").append(esc(name)).append("</code></td><td>").append(text.isEmpty() ? "<span class=\"dim\">(vazio)</span>" : esc(text)).append("</td></tr>");
+        });
+        b.append("</table><p class=\"dim\">O LinkedIn não permite leitura automática: ele entra só como link. Para a IA conhecer o conteúdo, publique o texto no site ")
+                .append("(<code>llms-full.txt</code>) ou um PDF do currículo e configure em <code>documents</code>.</p>");
+
+        b.append("<h2>Reindexar tudo</h2>");
+        boolean running = status.path("rodando").asBoolean();
+        if (running) {
+            b.append("<p class=\"warn\">Há uma indexação em andamento. Atualize a página em alguns segundos.</p>");
+        }
+        if (canTrigger) {
+            b.append("<form method=\"post\" action=\"/admin/reindex\"><button")
+                    .append(running ? " disabled" : "").append(">Resetar e buscar tudo de novo</button></form>")
+                    .append("<p class=\"dim\">Relê o snapshot do CRUD, o site, os documentos, o GitHub e os repositórios, monta um índice novo e o ativa. ")
+                    .append("Se algo der errado, o índice atual continua valendo.</p>");
+        }
+
+        JsonNode jobs = status.path("jobs");
+        b.append("<h2>Últimas execuções</h2>");
+        if (!jobs.isArray() || jobs.isEmpty()) {
+            return layout("Fontes", "fontes", b.append("<p class=\"dim\">Nenhuma execução registrada.</p>").toString());
+        }
+        b.append("<table><tr><th>Início</th><th>Gatilho</th><th>Estado</th><th>Versão</th><th>Resumo</th></tr>");
+        for (JsonNode job : jobs) {
+            JsonNode r = job.path("relatorio");
+            String summary = r.has("motivo") ? r.path("motivo").asString("")
+                    : r.path("trechosDoSnapshot").asInt() + " do snapshot, " + r.path("trechosDeFontes").asInt() + " das fontes, "
+                    + r.path("trechosDeRepositorios").asInt() + " de repositórios";
+            b.append("<tr><td>").append(esc(shortTime(job.path("inicio").asString("")))).append("</td><td>")
+                    .append(esc(job.path("gatilho").asString(""))).append("</td><td>").append(esc(job.path("estado").asString("")))
+                    .append("</td><td>").append(job.path("versao").isNull() ? "" : esc(job.path("versao").asString("")))
+                    .append("</td><td>").append(esc(summary)).append("</td></tr>");
+        }
+        b.append("</table>");
+
+        JsonNode last = null;
+        for (JsonNode job : jobs) {
+            if (job.path("relatorio").path("fontes").isArray()) {
+                last = job.path("relatorio").path("fontes");
+                break;
+            }
+        }
+        if (last != null) {
+            b.append("<h2>Resultado da leitura de cada fonte (última indexação)</h2><table><tr><th>Tipo</th><th>Fonte</th><th>Estado</th><th>Trechos</th><th>Aviso</th></tr>");
+            for (JsonNode s : last) {
+                b.append("<tr><td>").append(esc(s.path("tipo").asString(""))).append("</td><td>").append(esc(s.path("fonte").asString("")))
+                        .append("</td><td>").append(esc(s.path("estado").asString(""))).append("</td><td>").append(s.path("trechos").asInt())
+                        .append("</td><td>").append(esc(s.path("aviso").asString(""))).append("</td></tr>");
+            }
+            b.append("</table>");
+        }
+        return layout("Fontes", "fontes", b.toString());
+    }
+
+    /** "2026-10-03T13:45:10.123Z" vira "2026-10-03 13:45:10". */
+    private static String shortTime(String iso) {
+        int dot = iso.indexOf('.');
+        return (dot < 0 ? iso : iso.substring(0, dot)).replace('T', ' ');
+    }
+
+    private static String joinArray(JsonNode array) {
+        var parts = new ArrayList<String>();
+        array.forEach(n -> parts.add(n.asString("")));
+        return String.join(", ", parts);
     }
 
     private static JsonNode parse(String json) {

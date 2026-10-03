@@ -112,6 +112,23 @@ public class IndexStore {
         return jdbc.sql(ACTIVE_ETAG).query(String.class).optional();
     }
 
+    /** As últimas execuções, da mais nova para a mais velha, para o painel. O relatório é o JSON de contagens e motivos. */
+    public List<Map<String, Object>> recentJobs(int limit) {
+        return jdbc.sql("SELECT id, trigger, status, started_at, finished_at, version_id, report::text AS report FROM ops.index_job ORDER BY started_at DESC LIMIT :n")
+                .param("n", limit).query((rs, i) -> {
+                    var row = new java.util.LinkedHashMap<String, Object>();
+                    row.put("id", rs.getString("id"));
+                    row.put("gatilho", rs.getString("trigger"));
+                    row.put("estado", rs.getString("status"));
+                    row.put("inicio", String.valueOf(rs.getTimestamp("started_at").toInstant()));
+                    var end = rs.getTimestamp("finished_at");
+                    row.put("fim", end == null ? null : String.valueOf(end.toInstant()));
+                    row.put("versao", rs.getObject("version_id"));
+                    row.put("relatorio", json.readTree(rs.getString("report")));
+                    return (Map<String, Object>) row;
+                }).list();
+    }
+
     public UUID startJob(String trigger) {
         return jdbc.sql(START_JOB).param("trigger", trigger).query(UUID.class).single();
     }

@@ -4,6 +4,8 @@ import br.com.gilvanborges.javai.ai.core.embedding.Embedder;
 import br.com.gilvanborges.javai.ai.indexer.embedding.EmbedderProvider;
 import br.com.gilvanborges.javai.ai.indexer.repo.RepoSource;
 import br.com.gilvanborges.javai.ai.indexer.snapshot.SnapshotClient;
+import br.com.gilvanborges.javai.ai.indexer.sources.PublicSources;
+import br.com.gilvanborges.javai.ai.indexer.sources.SourcesProperties;
 import br.com.gilvanborges.javai.ai.indexer.store.IndexStore;
 import br.com.gilvanborges.javai.ai.migrations.DatabaseSettings;
 import br.com.gilvanborges.javai.ai.migrations.TestDatabase;
@@ -58,6 +60,8 @@ class IndexerServiceIntegrationTest {
         store = new IndexStore(JdbcClient.create(ds), new JdbcTemplate(ds), json);
     }
 
+    private PublicSources noSources;
+
     @BeforeEach
     void limpaEMonta() throws SQLException {
         TestDatabase.truncateAll(db);
@@ -66,7 +70,8 @@ class IndexerServiceIntegrationTest {
         embedders = new FakeEmbedders(Optional.of(fakeEmbedder(384)));
         var props = new IndexerProperties("http://127.0.0.1:1", Duration.ofMinutes(5), 51_200, 300, "/nada", 1,
                 "https://api.github.com", "https://github.com/", java.time.Duration.ZERO);
-        service = new IndexerService(snapshots, repos, embedders, store, json, props);
+        noSources = new PublicSources(new SourcesProperties(null, null, null, null, false, null, 30, "", "", Duration.ofMinutes(30)), props, json);
+        service = new IndexerService(snapshots, repos, embedders, store, json, props, noSources);
     }
 
     @Test
@@ -133,7 +138,7 @@ class IndexerServiceIntegrationTest {
     void repositorio_que_recebe_commit_a_toda_hora_respeita_o_intervalo_minimo() throws Exception {
         var slow = new IndexerProperties("http://127.0.0.1:1", Duration.ofMinutes(5), 51_200, 300, "/nada", 1,
                 "https://api.github.com", "https://github.com/", Duration.ofHours(1));
-        var guarded = new IndexerService(snapshots, repos, embedders, store, json, slow);
+        var guarded = new IndexerService(snapshots, repos, embedders, store, json, slow, noSources);
         guarded.run(IndexerService.Trigger.AGENDADO);
         snapshots.notModified = true;
 

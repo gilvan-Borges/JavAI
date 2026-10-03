@@ -182,6 +182,18 @@ services:
       AI_INDEXER_PASSWORD: ${AI_INDEXER_PASSWORD:?defina no .env}
       INDEXER_SNAPSHOT_BASE_URL: ${INDEXER_SNAPSHOT_BASE_URL:-https://conteudo.gilvanborges.com.br}
       INDEXER_MODEL_DIR: /models
+      # Porta interna usada pelo botão "reindexar" do /admin. Sem token ela responde 404.
+      INDEXER_TRIGGER_TOKEN: ${INDEXER_TRIGGER_TOKEN:-}
+      # Fontes públicas da IA (veja .env.example). Tudo opcional; vazio = a fonte não existe.
+      INDEXER_SOURCES_SITE_URL: ${INDEXER_SOURCES_SITE_URL:-}
+      INDEXER_SOURCES_SITE_DOCUMENTS: ${INDEXER_SOURCES_SITE_DOCUMENTS:-}
+      INDEXER_SOURCES_DOCUMENTS: ${INDEXER_SOURCES_DOCUMENTS:-}
+      INDEXER_SOURCES_GITHUB_USERS: ${INDEXER_SOURCES_GITHUB_USERS:-}
+      INDEXER_SOURCES_GITHUB_REPOS: ${INDEXER_SOURCES_GITHUB_REPOS:-}
+      INDEXER_SOURCES_GITHUB_DISCOVER: ${INDEXER_SOURCES_GITHUB_DISCOVER:-false}
+      INDEXER_SOURCES_GITHUB_EXCLUDE: ${INDEXER_SOURCES_GITHUB_EXCLUDE:-}
+      INDEXER_SOURCES_GITHUB_MAX_REPOS: ${INDEXER_SOURCES_GITHUB_MAX_REPOS:-30}
+      INDEXER_SOURCES_LINKEDIN_URL: ${INDEXER_SOURCES_LINKEDIN_URL:-}
     volumes:
       - ai-models:/models
     tmpfs:
@@ -213,6 +225,7 @@ services:
       # Página /admin (só leitura). Sem usuário e senha (16+ caracteres) a rota nem existe.
       AIAPI_ADMIN_USER: ${ADMIN_UI_USER:-}
       AIAPI_ADMIN_PASSWORD: ${ADMIN_UI_PASSWORD:-}
+      AIAPI_ADMIN_INDEXER_TOKEN: ${INDEXER_TRIGGER_TOKEN:-}
       AIAPI_CHAT_OPENROUTER_KEY: ${OPENROUTER_API_KEY:-}
       AIAPI_CHAT_TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
       AIAPI_CHAT_TURNSTILE_HOSTNAMES: ${TURNSTILE_HOSTNAMES:-gilvanborges.com.br,www.gilvanborges.com.br}

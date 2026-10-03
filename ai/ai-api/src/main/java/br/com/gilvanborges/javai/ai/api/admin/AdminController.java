@@ -33,6 +33,12 @@ import java.util.Optional;
 @RestController
 public class AdminController {
 
+    /** Mensagens fixas: o texto vem daqui, nunca do parâmetro da URL. */
+    private static final java.util.Map<String, String> NOTICES = java.util.Map.of(
+            "iniciada", "Reindexação iniciada. Atualize em alguns segundos para ver o resultado.",
+            "andamento", "Já existe uma indexação em andamento.",
+            "indisponivel", "Não consegui falar com o indexador.");
+
     private static final MediaType HTML = new MediaType("text", "html", java.nio.charset.StandardCharsets.UTF_8);
 
     private final AdminProperties props;
@@ -46,10 +52,12 @@ public class AdminController {
     private final UsageStore usage;
     private final UsageRecorder recorder;
     private final Clock clock;
+    private final IndexerClient indexer;
 
     public AdminController(AdminProperties props, AdminSession session, LoginThrottle throttle, Keys keys, IndexHolder index,
                            QueryEmbedder embedder, ChatProperties chat, ChatService chatService, UsageStore usage,
-                           UsageRecorder recorder, Clock clock) {
+                           UsageRecorder recorder, Clock clock, IndexerClient indexer) {
+        this.indexer = indexer;
         this.props = props;
         this.session = session;
         this.throttle = throttle;
@@ -118,6 +126,25 @@ public class AdminController {
                                          @RequestParam(name = "repo", defaultValue = "") String repo,
                                          @RequestParam(name = "page", defaultValue = "0") int page) {
         return html(AdminPages.chunks(index.current().orElse(null), clip(kind, 20), lang.equals("pt") || lang.equals("en") ? lang : "", clip(repo, 140), page));
+    }
+
+    @GetMapping("/admin/fontes")
+    public ResponseEntity<String> sources(@RequestParam(name = "aviso", defaultValue = "") String notice) {
+        return html(AdminPages.sources(indexer.status().orElse(null), NOTICES.getOrDefault(notice, ""), indexer.configured()));
+    }
+
+    /** Só o painel, do mesmo site e com a sessão, pode pedir. O pedido não leva parâmetro: relê o que já está configurado. */
+    @PostMapping("/admin/reindex")
+    public ResponseEntity<String> reindex(HttpServletRequest request) {
+        if (!"same-origin".equals(request.getHeader("Sec-Fetch-Site"))) {
+            return ResponseEntity.status(403).contentType(HTML).body(AdminPages.loginPage("Pedido de outro site recusado."));
+        }
+        String key = switch (indexer.reindex()) {
+            case STARTED -> "iniciada";
+            case ALREADY_RUNNING -> "andamento";
+            case UNAVAILABLE -> "indisponivel";
+        };
+        return ResponseEntity.status(303).header("Location", "/admin/fontes?aviso=" + key).build();
     }
 
     @GetMapping("/admin/busca")

@@ -5,6 +5,7 @@ import br.com.gilvanborges.javai.ai.indexer.build.IndexBuilder;
 import br.com.gilvanborges.javai.ai.indexer.embedding.EmbedderProvider;
 import br.com.gilvanborges.javai.ai.indexer.repo.RepoSource;
 import br.com.gilvanborges.javai.ai.indexer.snapshot.SnapshotClient;
+import br.com.gilvanborges.javai.ai.indexer.sources.PublicSources;
 import br.com.gilvanborges.javai.ai.indexer.store.IndexStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,21 +55,29 @@ public class IndexerService {
     private final IndexStore store;
     private final JsonMapper json;
     private final IndexerProperties properties;
+    private final PublicSources sources;
     private final AtomicBoolean running = new AtomicBoolean();
     /** Quando a última reindexação disparada por commit novo começou: segura um repositório que recebe commits a toda hora. */
     private final AtomicReference<Instant> lastRepoTriggered = new AtomicReference<>(Instant.EPOCH);
+    /** Quando as fontes públicas foram conferidas pela última vez: elas têm intervalo próprio, maior que o do snapshot. */
+    private final AtomicReference<Instant> lastSourceCheck = new AtomicReference<>(Instant.EPOCH);
     private static final String REPO_KEY = "repo:";
     /** Marca que o índice registrou o commit de cada repositório; sem ela, é um índice de antes desta conferência. */
     private static final String TRACKED_KEY = "repos:tracked";
 
     public IndexerService(SnapshotClient snapshots, RepoSource repos, EmbedderProvider embedders, IndexStore store,
-                          JsonMapper json, IndexerProperties properties) {
+                          JsonMapper json, IndexerProperties properties, PublicSources sources) {
+        this.sources = sources;
         this.snapshots = snapshots;
         this.repos = repos;
         this.embedders = embedders;
         this.store = store;
         this.json = json;
         this.properties = properties;
+    }
+
+    public boolean running() {
+        return running.get();
     }
 
     /** Nunca lança exceção: o resultado diz se deu certo, foi pulado ou falhou. */
@@ -82,6 +91,7 @@ public class IndexerService {
             boolean force = trigger != Trigger.SNAPSHOT;
             Map<String, String> previous = force ? Map.of() : previousEtags();
 
+            PublicSources.Read sourceRead = null;
             var fetched = new LinkedHashMap<String, SnapshotClient.Fetch>();
             for (String lang : LANGS) {
                 fetched.put(lang, snapshots.fetch(lang, previous.get(lang)));
@@ -90,20 +100,30 @@ public class IndexerService {
                 // O snapshot do CRUD não mudou, mas os repositórios podem ter recebido commit: confere o HEAD de cada um.
                 List<String> changed = previous.containsKey(TRACKED_KEY) ? repositoriesWithNewCommits(previous)
                         : List.of("(índice anterior não registrava os commits)");
-                if (changed.isEmpty()) {
-                    var report = Map.<String, Object>of("motivo", "o snapshot e os repositórios não mudaram");
+                boolean sourcesDue = sources.properties().any()
+                        && Duration.between(lastSourceCheck.get(), Instant.now()).compareTo(sources.properties().checkInterval()) >= 0;
+                boolean sourcesChanged = false;
+                if (sourcesDue) {
+                    lastSourceCheck.set(Instant.now());
+                    sourceRead = sources.read();
+                    var known = previous;
+                    sourcesChanged = !sourceRead.hashes().entrySet().stream()
+                            .allMatch(e -> e.getValue().equals(known.get(e.getKey())));
+                }
+                if (changed.isEmpty() && !sourcesChanged) {
+                    var report = Map.<String, Object>of("motivo", "o snapshot, os repositórios e as fontes públicas não mudaram");
                     store.finishJob(job, "skipped", null, report);
                     return new Outcome("skipped", null, report);
                 }
                 Duration sinceLast = Duration.between(lastRepoTriggered.get(), Instant.now());
-                if (sinceLast.compareTo(properties.repoMinInterval()) < 0) {
+                if (!sourcesChanged && sinceLast.compareTo(properties.repoMinInterval()) < 0) {
                     var report = Map.<String, Object>of("motivo", "repositórios com commit novo, aguardando o intervalo mínimo",
                             "repositorios", changed);
                     store.finishJob(job, "skipped", null, report);
                     return new Outcome("skipped", null, report);
                 }
                 lastRepoTriggered.set(Instant.now());
-                LOG.info("Commit novo em {}: reindexando.", changed);
+                LOG.info("Mudança detectada (repositórios: {}, fontes públicas: {}): reindexando.", changed, sourcesChanged);
             }
             // Mudou num idioma: precisamos dos dois inteiros, então o que respondeu 304 é lido de novo.
             for (String lang : LANGS) {
@@ -119,13 +139,28 @@ public class IndexerService {
                 etags.put(lang, f.etag());
             });
 
-            var repoReads = linkedRepositories(data).stream().map(repos::read).toList();
+            if (sources.properties().any()) {
+                lastSourceCheck.set(Instant.now());
+                if (sourceRead == null) {
+                    sourceRead = sources.read();
+                }
+            }
+            var repoNames = new LinkedHashSet<>(linkedRepositories(data));
+            if (sourceRead != null) {
+                repoNames.addAll(sources.repositories(sourceRead.repos()));
+            }
+            var repoReads = repoNames.stream().map(repos::read).toList();
             // O commit lido de cada repositório entra junto com os ETags do snapshot: é com ele que o próximo ciclo compara.
             etags.put(TRACKED_KEY, "1");
             repoReads.stream().filter(r -> !r.wasSkipped() && r.commitSha() != null)
                     .forEach(r -> etags.put(REPO_KEY + r.fullName(), r.commitSha()));
             Optional<br.com.gilvanborges.javai.ai.core.embedding.Embedder> embedder = embedders.get();
-            var built = new IndexBuilder(properties.maxChunksPerRepo()).build(data, repoReads, embedder);
+            if (sourceRead != null) {
+                etags.putAll(sourceRead.hashes());
+            }
+            var built = new IndexBuilder(properties.maxChunksPerRepo()).build(data, repoReads,
+                    sourceRead == null ? List.of() : sourceRead.chunks(),
+                    sourceRead == null ? List.of() : sourceRead.status(), embedder);
 
             versionId = store.createVersion(embedder.map(e -> e.modelId()).orElse(null), json.writeValueAsString(etags));
             try {
