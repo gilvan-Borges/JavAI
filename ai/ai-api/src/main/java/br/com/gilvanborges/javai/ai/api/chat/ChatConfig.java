@@ -62,5 +62,12 @@ public class ChatConfig implements WebMvcConfigurer {
                 .allowedHeaders("Content-Type")
                 .allowCredentials(false)
                 .maxAge(600);
+        // O ponto verde do terminal do portfólio faz GET /health do navegador: sem este cabeçalho a resposta fica
+        // invisível para a página e a API saudável aparece como "offline".
+        registry.addMapping("/health")
+                .allowedOrigins(props.corsOrigin())
+                .allowedMethods("GET")
+                .allowCredentials(false)
+                .maxAge(600);
     }
 }

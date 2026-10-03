@@ -229,6 +229,24 @@ class ChatHttpTest {
     }
 
     @Test
+    void health_libera_cors_so_para_o_portfolio_porque_o_ponto_verde_do_terminal_depende_disso() throws Exception {
+        var fromPortfolio = HTTP.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/health"))
+                .header("Origin", "https://gilvanborges.com.br").build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(fromPortfolio.statusCode()).isEqualTo(200);
+        assertThat(fromPortfolio.headers().firstValue("Access-Control-Allow-Origin")).contains("https://gilvanborges.com.br");
+
+        var fromEvil = HTTP.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/health"))
+                .header("Origin", "https://evil.example").build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(fromEvil.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
+
+        // Só GET: um POST de outra origem não ganha cabeçalho nenhum.
+        var post = HTTP.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/health"))
+                .header("Origin", "https://gilvanborges.com.br").header("Access-Control-Request-Method", "POST")
+                .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(post.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
+    }
+
+    @Test
     void health_e_stats_sao_publicos_e_agregados() throws Exception {
         var health = HTTP.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/health")).build(),
                 HttpResponse.BodyHandlers.ofString());
