@@ -3,6 +3,7 @@ package br.com.gilvanborges.javai.ai.api.chat;
 import br.com.gilvanborges.javai.ai.api.index.ActiveIndex;
 import br.com.gilvanborges.javai.ai.api.index.IndexHolder;
 import br.com.gilvanborges.javai.ai.api.index.QueryEmbedder;
+import br.com.gilvanborges.javai.ai.api.usage.LatencyStats;
 import br.com.gilvanborges.javai.ai.api.usage.UsageRecorder;
 import br.com.gilvanborges.javai.ai.api.web.RateLimiter;
 import br.com.gilvanborges.javai.ai.core.chunk.Chunk;
@@ -57,6 +58,7 @@ public class ChatService {
     private final QueryEmbedder embedder;
     private final Clock clock;
     private final AnswerCache cache;
+    private final LatencyStats latencies = new LatencyStats();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
 
     public ChatService(ChatProperties props, Turnstile turnstile, QuestionClassifier classifier, ChatModel model,
@@ -80,6 +82,11 @@ public class ChatService {
     /** Visitantes bloqueados agora (para a página de admin). */
     public int blockedVisitors() {
         return abuse.blockedCount();
+    }
+
+    /** Percentis de latência por etapa desde o boot (para a página de admin). Respostas de cache ficam de fora. */
+    public LatencyStats latencies() {
+        return latencies;
     }
 
     /** As camadas que respondem com um status HTTP, antes de abrir o stream. Lança {@link ChatProblem}. */
@@ -162,6 +169,7 @@ public class ChatService {
         classifyTrace.put("confidence", decision.confidence());
         classifyTrace.put("ms", classified.ms());
         sink.send("trace", classifyTrace);
+        latencies.record("classify", classified.ms());
 
         if (decision.action() == Router.Action.REFUSE) {
             usage.refusal();
@@ -180,6 +188,7 @@ public class ChatService {
         searchTrace.put("model", found.value().vector() ? active.embeddingModel() : null);
         searchTrace.put("ms", found.ms());
         sink.send("trace", searchTrace);
+        latencies.record("search", found.ms());
 
         List<Chunk> sources = withAnchors(found.value().hits().stream().map(HybridSearcher.Hit::chunk).toList(), active, lang, decision);
         String canary = keys.canary(PromptBuilder.VERSION);
@@ -200,6 +209,7 @@ public class ChatService {
 
         var guard = new OutputGuard(canary, sources.size());
         boolean[] gone = {false};
+        long modelStarted = System.nanoTime();
         ChatModel.Usage used;
         try {
             used = model.stream(prompt, models, delta -> {
@@ -218,7 +228,9 @@ public class ChatService {
             sink.send("error", Map.of("message", Messages.error(lang)));
             return;
         }
+        latencies.record("model", elapsedMs(modelStarted));
         int latency = elapsedMs(started);
+        latencies.record("total", latency);
         if (gone[0]) {
             usage.answer(used.model(), used.tokensIn(), used.tokensOut(), used.costUsd(), latency, false);
             return;

@@ -28,6 +28,28 @@ public class QueryEmbedder implements AutoCloseable {
     }
 
     /**
+     * Aquece no boot, fora do caminho de quem pergunta: carregar o ONNX e gerar o primeiro vetor custa segundos, e
+     * sem isso a primeira busca depois de um reinício pagava essa espera (spec 06, pendência 6).
+     */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void warmUpOnBoot() {
+        Thread.ofVirtual().name("embedder-warmup").start(this::warmUp);
+    }
+
+    synchronized void warmUp() {
+        OnnxEmbedder model = model();
+        if (model == null) {
+            return; // volume ainda sem modelo: a primeira pergunta tenta de novo
+        }
+        try {
+            model.embedQuery("aquecimento");
+            LOG.info("Modelo de embeddings aquecido.");
+        } catch (RuntimeException e) {
+            LOG.warn("Aquecimento do embedder falhou ({}).", e.getClass().getSimpleName());
+        }
+    }
+
+    /**
      * O vetor da pergunta, ou vazio se o modelo não estiver disponível ou for diferente do que gerou o índice
      * (vetores de modelos diferentes não se comparam).
      */

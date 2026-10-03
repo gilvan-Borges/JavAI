@@ -5,6 +5,7 @@ import br.com.gilvanborges.javai.ai.api.chat.PromptBuilder;
 import br.com.gilvanborges.javai.ai.api.chat.Router;
 import br.com.gilvanborges.javai.ai.api.index.ActiveIndex;
 import br.com.gilvanborges.javai.ai.api.index.IndexRepository;
+import br.com.gilvanborges.javai.ai.api.usage.LatencyStats;
 import br.com.gilvanborges.javai.ai.api.usage.UsageStore;
 import br.com.gilvanborges.javai.ai.core.chunk.Chunk;
 import br.com.gilvanborges.javai.ai.core.chunk.SourceKind;
@@ -56,7 +57,7 @@ final class AdminPages {
 
     /** Tudo que a visão geral precisa saber. {@code index} e {@code meta} são nulos se ainda não houver índice. */
     record Overview(ActiveIndex index, IndexRepository.VersionMeta meta, ChatProperties chat, List<UsageStore.Day> usage,
-                    BigDecimal spentToday, int blockedVisitors) {
+                    BigDecimal spentToday, int blockedVisitors, Map<String, LatencyStats.Percentiles> latencies) {
     }
 
     // ------------------------------------------------------------------------------------------------ estrutura
@@ -120,6 +121,7 @@ final class AdminPages {
                 pergunta não pagar o modelo duas vezes; ele morre com o processo e se invalida quando o índice ou o prompt mudam.</div>
                 """.formatted(esc(String.join(", ", o.chat().modelsFast()))));
         b.append("<h2>O que vai para o modelo a cada pergunta</h2>").append(promptSection());
+        b.append("<h2>Latência por etapa (desde o último reinício)</h2>").append(latencySection(o));
         b.append("<h2>Uso nos últimos 30 dias</h2>").append(usageSection(o));
         b.append("<h2>Limites e segurança agora</h2>").append(securitySection(o));
         b.append("<h2>O que a IA <em>não</em> acessa</h2>").append(boundariesSection());
@@ -220,6 +222,21 @@ final class AdminPages {
                 + "<p>A segunda leva, dentro de blocos delimitados que o modelo trata como dado, os trechos escolhidos pela busca "
                 + "(<code>&lt;fonte id=\"n\"&gt;</code>), até 4 turnos anteriores assinados (<code>&lt;historico&gt;</code>) e a pergunta (<code>&lt;pergunta&gt;</code>). "
                 + "Para ver quais trechos uma pergunta traria, use <a href=\"/admin/busca\">Testar a busca</a>.</p>";
+    }
+
+    private static final Map<String, String> STEP_LABEL = Map.of(
+            "classify", "Classificação (Jev)", "search", "Busca híbrida", "model", "Modelo (streaming completo)", "total", "Resposta inteira");
+
+    /** p50 e p90 por etapa do pipeline, das últimas 512 respostas reais (as de cache ficam de fora). */
+    private static String latencySection(Overview o) {
+        if (o.latencies() == null || o.latencies().isEmpty()) {
+            return "<p class=\"dim\">Ainda não há respostas medidas desde o último reinício.</p>";
+        }
+        var b = new StringBuilder("<table><tr><th>Etapa</th><th>p50</th><th>p90</th><th>Medições</th></tr>");
+        o.latencies().forEach((step, p) -> b.append("<tr><td>").append(esc(STEP_LABEL.getOrDefault(step, step)))
+                .append("</td><td>").append(p.p50()).append(" ms</td><td>").append(p.p90()).append(" ms</td><td>")
+                .append(p.count()).append("</td></tr>"));
+        return b.append("</table>").toString();
     }
 
     private static String usageSection(Overview o) {

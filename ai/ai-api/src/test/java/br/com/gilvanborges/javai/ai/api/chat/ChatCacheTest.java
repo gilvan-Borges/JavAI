@@ -34,8 +34,8 @@ class ChatCacheTest {
         @Override
         public Usage stream(PromptBuilder.Prompt prompt, List<String> models, Predicate<String> onDelta) throws IOException {
             calls++;
-            onDelta.test(text);
-            return new Usage(models.get(0), 100, 20, new BigDecimal("0.0002"));
+            boolean wanted = onDelta.test(text);
+            return new Usage(models.get(0), 100, wanted ? 20 : 5, new BigDecimal("0.0002"));
         }
     }
 

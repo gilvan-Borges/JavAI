@@ -118,7 +118,7 @@ public class AdminController {
             rows = List.of();
         }
         var overview = new AdminPages.Overview(index.current().orElse(null), index.meta().orElse(null), chat, rows,
-                recorder.spentToday(), chatService.blockedVisitors());
+                recorder.spentToday(), chatService.blockedVisitors(), chatService.latencies().snapshot());
         return html(AdminPages.overview(overview));
     }
 

@@ -26,6 +26,7 @@
         <java.version>25</java.version>
         <springdoc.version>3.1.1</springdoc.version>
         <archunit.version>1.5.1</archunit.version>
+        <errorprone.version>2.50.0</errorprone.version>
 
         <!--
             Correções de segurança à frente do Spring Boot 4.1.1, apontadas pelo Trivy no CI (2026-10-03):
@@ -56,4 +57,32 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <!--
+                    Análise estática em todo módulo (spec 06, pendência 4): o ErrorProne roda dentro do javac e o
+                    `mvn verify` do CI falha nos checks de nível ERROR. Foi o escolhido porque, nesta data, SpotBugs
+                    e PMD ainda não leem Java 25. Os flags de add-exports que ele exige estão em .mvn/jvm.config.
+                -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <compilerArgs>
+                        <arg>-XDcompilePolicy=simple</arg>
+                        <arg>--should-stop=ifError=FLOW</arg>
+                        <arg>-Xplugin:ErrorProne</arg>
+                    </compilerArgs>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>com.google.errorprone</groupId>
+                            <artifactId>error_prone_core</artifactId>
+                            <version>${errorprone.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

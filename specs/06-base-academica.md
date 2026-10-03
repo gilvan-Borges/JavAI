@@ -64,10 +64,12 @@ Em ordem de valor:
 
 1. ~~Retries com backoff no OpenRouter~~ — **feito (2026-10-03)**: 3 tentativas com espera de 400 ms/1,2 s para falha de rede, 408, 429 e 5xx, e nunca depois do primeiro pedaço entregue (duplicaria texto). Erro de configuração (401/402) não retenta.
 2. ~~Cache de respostas~~ — **feito (2026-10-03)**: `AnswerCache` em memória, chave SHA-256 da pergunta normalizada + idioma + versão do índice + versão do prompt; TTL de 6 h, 256 entradas (LRU); só respostas aprovadas pela guarda e sem histórico; o evento `meta` ganha `cached: true`.
-3. **Observabilidade estruturada** (ementa 1, módulo 2): o `trace` por resposta existe; faltam métricas agregadas de latência por etapa (p50/p90) expostas no `/admin`.
-4. **Análise estática no CI** (ementa 1, módulo 9): ligar SpotBugs/PMD (ou ErrorProne) no build.
-5. **Acabamento open source** (ementa 2, capstone): README de raiz com diagrama de arquitetura, instruções de subir local e `CONTRIBUTING.md`; conferir que nenhum valor pessoal reste fora de configuração.
-6. **Warm-up do embedder no boot** (qualidade de produção): a primeira busca após reinício paga ~6 s.
+3. ~~Observabilidade estruturada~~ — **feito (2026-10-03)**: `LatencyStats` guarda as últimas 512 medições de cada etapa (classify, search, model, total) e o `/admin` mostra p50/p90 desde o boot; respostas de cache ficam de fora para não distorcer.
+4. ~~Análise estática no CI~~ — **feito (2026-10-03)**: ErrorProne 2.50 dentro do javac (o `mvn verify` falha nos checks de nível ERROR). SpotBugs e PMD foram testados e ainda não leem Java 25 nesta data; reavaliar trocar ou somar quando suportarem.
+5. ~~Acabamento open source~~ — **feito (2026-10-03)**: README de raiz com diagrama e instruções, `CONTRIBUTING.md` com as regras inegociáveis; o conteúdo pessoal vive no CRUD e nas `INDEXER_SOURCES_*`, e os padrões de produção do `application.yml` são sobrescritos por ambiente.
+6. ~~Warm-up do embedder no boot~~ — **feito (2026-10-03)**: o ai-api carrega o ONNX e gera um vetor de aquecimento numa thread virtual no `ApplicationReadyEvent`; a primeira pergunta não paga mais os ~6 s.
+
+Todas as pendências da primeira rodada foram fechadas em 2026-10-03.
 
 ## Decisões tomadas
 
