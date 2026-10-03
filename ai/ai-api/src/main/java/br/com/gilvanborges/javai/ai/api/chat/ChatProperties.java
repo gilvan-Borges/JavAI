@@ -22,7 +22,10 @@ import java.util.List;
  * @param historySecret       segredo-mestre das assinaturas do histórico e das chaves do dia; vazio = aleatório a cada partida
  * @param dailyBudgetUsd      teto diário de gasto: o disjuntor abre aqui
  * @param perMinute           perguntas por minuto por IP
- * @param perDay              perguntas por dia por IP
+ * @param perDay              perguntas por dia por IP; 0 = sem limite diário (o teto de gasto do dia continua valendo)
+ * @param banHours           por quantas horas bloquear quem tentou atacar o chat; 0 desliga o bloqueio
+ * @param banConfidence      confiança mínima do Jev em "ataque" para bloquear na primeira tentativa
+ * @param banStrikes         quantas recusas por ataque (de qualquer confiança acima do limiar do roteador) bloqueiam
  * @param jevTimeoutMs        passado disso, a pergunta segue com o nível {@code rapido}
  * @param corsOrigin          a origem do portfólio nas rotas /v1
  */
@@ -44,7 +47,10 @@ public record ChatProperties(
         @DefaultValue("") String historySecret,
         @DefaultValue("1.00") BigDecimal dailyBudgetUsd,
         @DefaultValue("3") int perMinute,
-        @DefaultValue("10") int perDay,
+        @DefaultValue("0") int perDay,
+        @DefaultValue("12") int banHours,
+        @DefaultValue("0.90") double banConfidence,
+        @DefaultValue("3") int banStrikes,
         @DefaultValue("800") int jevTimeoutMs,
         @DefaultValue("https://gilvanborges.com.br") String corsOrigin) {
 

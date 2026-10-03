@@ -89,6 +89,7 @@ O CORS não protege a API: um `curl` ignora CORS. Quem protege é o Turnstile, o
 | 400 | `/problems/validation` | Corpo inválido, campo desconhecido, texto fora do tamanho |
 | 403 | `/problems/turnstile` | Token do Turnstile ausente, inválido, já usado ou de outro hostname |
 | 403 | `/problems/origin` | `Origin` presente e fora da lista (MCP) |
+| 403 | `/problems/blocked` | Visitante bloqueado por 12 horas depois de tentar atacar o chat, com `Retry-After`. Vem antes do Turnstile |
 | 429 | `/problems/rate-limited` | Limite por IP atingido, com `Retry-After` |
 | 503 | `/problems/budget-exhausted` | Disjuntor de gasto aberto, com `Retry-After` até a meia-noite |
 | 503 | `/problems/maintenance` | Chat desligado pela chave de emergência |

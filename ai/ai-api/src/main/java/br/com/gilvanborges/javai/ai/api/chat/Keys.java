@@ -46,6 +46,11 @@ public final class Keys {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(mac);
     }
 
+    /** Hash estável do IP (não muda por dia): só para o bloqueio de 12 h, que atravessa a meia-noite. Só em memória. */
+    public String stableIpHash(String ip) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(hmac(derive("ban-ip"), ip.getBytes(StandardCharsets.UTF_8)));
+    }
+
     /** O canário desta versão do prompt: texto sem sentido que o modelo nunca deve escrever. */
     public String canary(String promptVersion) {
         byte[] mac = hmac(derive("canary-" + promptVersion), new byte[0]);

@@ -16,6 +16,12 @@ final class Messages {
                 : "I only answer questions about Gilvan: career, projects, code and skills.";
     }
 
+    static String blocked(String lang) {
+        return lang.equals("pt")
+                ? "Tentativa de ataque detectada. O acesso deste dispositivo foi bloqueado por 12 horas."
+                : "Attack attempt detected. Access from this device has been blocked for 12 hours.";
+    }
+
     static String retract(String lang) {
         return lang.equals("pt") ? "Não consegui responder isso com segurança. Tente reformular a pergunta."
                 : "I couldn't answer that safely. Try rephrasing the question.";

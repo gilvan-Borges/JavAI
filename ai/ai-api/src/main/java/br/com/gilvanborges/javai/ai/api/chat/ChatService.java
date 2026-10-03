@@ -50,6 +50,7 @@ public class ChatService {
     private final Keys keys;
     private final RateLimiter perMinute;
     private final DailyLimiter perDay;
+    private final AbuseGuard abuse;
     private final UsageRecorder usage;
     private final IndexHolder index;
     private final QueryEmbedder embedder;
@@ -66,6 +67,7 @@ public class ChatService {
         this.keys = keys;
         this.perMinute = new RateLimiter(props.perMinute(), clock);
         this.perDay = new DailyLimiter(props.perDay(), clock);
+        this.abuse = new AbuseGuard(clock, Duration.ofHours(props.banHours()), props.banConfidence(), props.banStrikes());
         this.usage = usage;
         this.index = index;
         this.embedder = embedder;
@@ -78,6 +80,11 @@ public class ChatService {
             throw new ChatProblem(503, "/problems/maintenance", "Chat unavailable",
                     "The chat is temporarily unavailable.", 60);
         }
+        // Quem foi bloqueado por tentar atacar nem chega ao Turnstile: a resposta é imediata e não custa nada.
+        abuse.blockedFor(keys.stableIpHash(ip)).ifPresent(left -> {
+            throw new ChatProblem(403, "/problems/blocked", "Access blocked",
+                    "Access blocked after an attack attempt.", Math.max(1, left.toSeconds()));
+        });
         if (!turnstile.verify(request.turnstileToken(), ip)) {
             throw new ChatProblem(403, "/problems/turnstile", "Verification failed",
                     "The human verification token is missing, invalid, already used or from another site.", 0);
@@ -99,6 +106,11 @@ public class ChatService {
 
     /** Roda a pergunta e manda os eventos para o {@code sink}. Bloqueia até o fim; chame numa thread virtual. */
     public void answer(ChatRequest request, EventSink sink) {
+        answer(request, "0.0.0.0", sink);
+    }
+
+    /** @param ip o IP do visitante, só para o bloqueio por ataque (vira um hash em memória) */
+    public void answer(ChatRequest request, String ip, EventSink sink) {
         long started = System.nanoTime();
         String lang = request.lang() != null ? request.lang() : LanguageGuess.of(request.question()).equals("pt") ? "pt" : "en";
         ActiveIndex active = index.current().orElse(null);
@@ -134,7 +146,10 @@ public class ChatService {
 
         if (decision.action() == Router.Action.REFUSE) {
             usage.refusal();
-            sink.send("refusal", Map.of("reason", decision.refusalReason(), "text", Messages.refusal(lang, decision.refusalReason())));
+            boolean blocked = decision.refusalReason().equals("attack")
+                    && abuse.recordAttack(keys.stableIpHash(ip), decision.confidence());
+            sink.send("refusal", Map.of("reason", decision.refusalReason(), "blocked", blocked,
+                    "text", blocked ? Messages.blocked(lang) : Messages.refusal(lang, decision.refusalReason())));
             return;
         }
 

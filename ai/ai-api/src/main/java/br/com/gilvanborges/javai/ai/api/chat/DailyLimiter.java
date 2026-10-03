@@ -25,6 +25,9 @@ public final class DailyLimiter {
 
     /** @return {@code true} se ainda cabe uma pergunta (e já a conta) */
     public synchronized boolean tryAcquire(String key) {
+        if (perDay <= 0) {
+            return true;
+        }
         LocalDate today = LocalDate.now(clock);
         if (!today.equals(day) || counts.size() >= MAX_KEYS) {
             counts.clear();

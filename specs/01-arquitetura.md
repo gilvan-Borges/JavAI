@@ -252,7 +252,8 @@ Valores iniciais propostos:
 
 | Limite | Valor |
 |---|---|
-| Perguntas por IP | 3 por minuto, 10 por dia |
+| Perguntas por IP | 3 por minuto, sem limite diário (o teto de gasto do dia continua valendo) |
+| Bloqueio por ataque | 12 horas por IP, quando o Jev classifica `ataque` com confiança de 0,90 ou mais, ou depois de 3 recusas por ataque. Pergunta fora do escopo nunca bloqueia |
 | Chamadas MCP por IP | 60 por minuto |
 | Teto diário de gasto (disjuntor) | US$ 1,00 |
 | Limite de crédito na chave do OpenRouter | US$ 10 por mês |

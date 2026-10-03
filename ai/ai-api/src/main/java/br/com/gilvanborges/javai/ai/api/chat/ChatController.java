@@ -47,11 +47,12 @@ public class ChatController {
         response.setHeader("Cache-Control", "no-store");
         response.setHeader("X-Accel-Buffering", "no");
         var emitter = new SseEmitter(90_000L);
-        Thread.startVirtualThread(() -> run(request, emitter));
+        String ip = ClientIp.of(http);
+        Thread.startVirtualThread(() -> run(request, ip, emitter));
         return emitter;
     }
 
-    private void run(ChatRequest request, SseEmitter emitter) {
+    private void run(ChatRequest request, String ip, SseEmitter emitter) {
         EventSink sink = (event, data) -> {
             try {
                 emitter.send(SseEmitter.event().name(event).data(JSON.writeValueAsString(data)));
@@ -61,7 +62,7 @@ public class ChatController {
             }
         };
         try {
-            service.answer(request, sink);
+            service.answer(request, ip, sink);
         } catch (RuntimeException e) {
             LOG.warn("Erro inesperado no chat ({}).", e.getClass().getSimpleName());
             sink.send("error", java.util.Map.of("message", "Something went wrong. Please try again shortly."));
