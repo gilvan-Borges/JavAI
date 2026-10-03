@@ -15,7 +15,7 @@ USER 10001:10001
 # um cache em DJL_CACHE_DIR, e o usuário do contêiner não tem diretório pessoal.
 # --add-modules jdk.incubator.vector liga o cosseno por SIMD (a busca cai para o escalar se faltar).
 ENV DJL_CACHE_DIR=/tmp/.djl.ai
-ENV JAVA_TOOL_OPTIONS="--add-modules jdk.incubator.vector -XX:MaxRAMPercentage=60 -XX:+UseCompactObjectHeaders -XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/tmp"
+ENV JAVA_TOOL_OPTIONS="--add-modules=jdk.incubator.vector -XX:MaxRAMPercentage=60 -XX:+UseCompactObjectHeaders -XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/tmp"
 
 EXPOSE 8080 8081
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
