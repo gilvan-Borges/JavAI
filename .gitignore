@@ -24,3 +24,6 @@ models/
 Thumbs.db
 
 gilvan-portifolio/
+
+# Ementas da pos (material da UNIPDS; resumo proprio em specs/06-base-academica.md)
+Ementa_*.pdf

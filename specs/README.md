@@ -10,6 +10,7 @@ O JavAI segue Spec-Driven Development. Toda mudança de direção entra primeiro
 | 03 | [Contrato da API](03-contrato-api.md) | Snapshot do conteúdo, API da IA, MCP e admin; eventos do streaming; erros | Rascunho |
 | 04 | [Ameaças](04-ameacas.md) | Ativos, atores, OWASP LLM Top 10, infraestrutura, resposta a incidente | Rascunho |
 | 05 | [Avaliação](05-avaliacao.md) | Bateria, verificador, juiz, busca, guarda, modelos, critérios para lançar | Rascunho |
+| 06 | [Base acadêmica](06-base-academica.md) | As duas ementas de pós como régua: mapa tema → código, divergências e pendências | Aprovada |
 
 ## Status de uma spec
 
