@@ -1,0 +1,95 @@
+#!/bin/bash
+# Deploy de uma versão do JavAI (spec 01, "Deploy"). Instalado na VPS em /usr/local/sbin/javai-deploy-root e
+# chamado só pelo comando forçado do usuário deploy, via sudo. Esta cópia no repositório é a fonte da verdade:
+# depois de mudá-la, reinstale na VPS (infra/README.md, seção 5).
+#
+# Entrada: o SHA do commit (argumento) e, pelo stdin, o usuário e o GITHUB_TOKEN do job do CI (uma linha cada).
+# O token expira quando o job termina; aqui ele serve para baixar as imagens e os arquivos de infraestrutura.
+set -euo pipefail
+
+readonly COMPOSE_DIR=/opt/javai/infra
+readonly REPO=gilvan-Borges/JavAI
+readonly SHA_RE='^[0-9a-f]{40}$'
+# Só estes arquivos do repositório são aplicados. .env e certificados nunca saem do servidor.
+readonly INFRA_FILES=(docker-compose.yml caddy/Caddyfile postgres-admin/pg_hba.conf)
+
+tag="${1:-}"
+[[ "$tag" =~ $SHA_RE ]] || { echo "SHA inválido." >&2; exit 2; }
+cd "$COMPOSE_DIR" 2>/dev/null || { echo "$COMPOSE_DIR não existe: faça o primeiro deploy à mão (infra/README.md)." >&2; exit 3; }
+[[ -f .env ]] || { echo ".env não existe: faça o primeiro deploy à mão (infra/README.md)." >&2; exit 3; }
+
+IFS= read -r ghcr_user || true
+IFS= read -r ghcr_token || true
+[[ "$ghcr_user" =~ ^[A-Za-z0-9-]{1,39}$ && -n "$ghcr_token" ]] || { echo "Credencial do GHCR ausente no stdin." >&2; exit 4; }
+
+work="$(mktemp -d)"
+DOCKER_CONFIG="$work/docker"; export DOCKER_CONFIG
+trap 'rm -rf "$work"' EXIT
+printf '%s' "$ghcr_token" | docker login ghcr.io -u "$ghcr_user" --password-stdin >/dev/null
+
+# --- 1. arquivos de infraestrutura do commit ---------------------------------------------------------------
+printf 'Authorization: Bearer %s\n' "$ghcr_token" > "$work/header"
+unset ghcr_token
+mkdir -p "$work/new" "$work/old"
+changed_caddy=0
+for f in "${INFRA_FILES[@]}"; do
+  mkdir -p "$work/new/$(dirname "$f")" "$work/old/$(dirname "$f")"
+  curl -fsS --max-time 30 -H @"$work/header" -H 'Accept: application/vnd.github.raw' \
+    "https://api.github.com/repos/$REPO/contents/infra/$f?ref=$tag" -o "$work/new/$f" \
+    || { echo "Não consegui baixar infra/$f do commit $tag." >&2; exit 5; }
+  [[ -s "$work/new/$f" ]] || { echo "infra/$f veio vazio." >&2; exit 5; }
+  cp -p "$f" "$work/old/$f" 2>/dev/null || true
+done
+rm -f "$work/header"
+# O compose novo precisa ser válido com o .env deste servidor antes de substituir o atual.
+docker compose --project-directory "$COMPOSE_DIR" -f "$work/new/docker-compose.yml" --env-file .env config --quiet \
+  || { echo "O docker-compose.yml do commit é inválido; nada foi alterado." >&2; exit 6; }
+for f in "${INFRA_FILES[@]}"; do
+  if ! cmp -s "$work/new/$f" "$f" 2>/dev/null; then
+    [[ "$f" == caddy/Caddyfile ]] && changed_caddy=1
+    install -m 644 "$work/new/$f" "$f"
+    logger -t javai-deploy "infra atualizada: $f"
+  fi
+done
+
+# --- 2. imagens e contêineres ------------------------------------------------------------------------------
+previous="$(sed -n 's/^JAVAI_TAG=//p' .env)"
+set_tag() { sed -i "s/^JAVAI_TAG=.*/JAVAI_TAG=$1/" .env; }
+
+restore_infra() {
+  for f in "${INFRA_FILES[@]}"; do [[ -f "$work/old/$f" ]] && install -m 644 "$work/old/$f" "$f"; done
+}
+
+healthy() {
+  local api caddy
+  for _ in $(seq 1 36); do
+    api="$(docker compose ps -q admin-api)"; caddy="$(docker compose ps -q caddy)"
+    if [[ -n "$api" && -n "$caddy" \
+          && "$(docker inspect -f '{{.State.Health.Status}}' "$api")" == healthy \
+          && "$(docker inspect -f '{{.State.Running}} {{.State.Restarting}}' "$caddy")" == "true false" ]]; then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1
+}
+
+logger -t javai-deploy "início: $tag (atual: ${previous:-nenhum})"
+set_tag "$tag"
+if docker compose pull --quiet && docker compose up -d --remove-orphans \
+   && { [[ $changed_caddy -eq 0 ]] || docker compose restart caddy >/dev/null; } && healthy; then
+  docker image prune -f >/dev/null
+  logger -t javai-deploy "ok: $tag"
+  echo "Deploy de $tag concluído."
+else
+  logger -t javai-deploy "falhou: $tag; voltando para ${previous:-nada}"
+  echo "Deploy de $tag falhou; voltando para ${previous:-nada}." >&2
+  docker compose ps -a --format 'table {{.Service}}\t{{.Status}}' >&2 || true
+  restore_infra
+  if [[ -n "$previous" ]]; then
+    set_tag "$previous"
+    docker compose up -d --remove-orphans || true
+    docker compose restart caddy >/dev/null 2>&1 || true
+  fi
+  exit 1
+fi

@@ -175,6 +175,17 @@ Depois, pelo Swagger:
 
 ## 5. Atualizar
 
+**Pelo CI/CD (o caminho normal).** Um push na `main` roda build, testes, Trivy, publica as imagens e faz o deploy. O script da VPS (`/usr/local/sbin/javai-deploy-root`, cópia em [`deploy/javai-deploy-root`](deploy/javai-deploy-root)) baixa do commit só `docker-compose.yml`, `caddy/Caddyfile` e `postgres-admin/pg_hba.conf`, valida o compose com o `.env` do servidor, sobe os contêineres e **volta sozinho para a versão anterior** (imagens e arquivos) se o `admin-api` não ficar saudável ou o Caddy não ficar de pé. O `.env` e os certificados nunca são tocados.
+
+Se você mudar o próprio script, reinstale na VPS (o CI não consegue, de propósito):
+
+```bash
+scp infra/deploy/javai-deploy-root gilvan@<ip-tailscale>:/tmp/
+ssh gilvan@<ip-tailscale> 'sudo install -o root -g root -m 755 /tmp/javai-deploy-root /usr/local/sbin/javai-deploy-root'
+```
+
+**À mão** (emergência):
+
 ```bash
 cd /opt/javai/infra
 # troque JAVAI_TAG no .env pelo SHA novo
