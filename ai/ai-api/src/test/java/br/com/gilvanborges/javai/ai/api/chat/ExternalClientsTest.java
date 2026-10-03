@@ -143,6 +143,57 @@ class ExternalClientsTest {
     }
 
     @Test
+    void openrouter_retenta_com_backoff_depois_de_429_e_5xx_e_consegue() throws Exception {
+        int[] calls = {0};
+        server.createContext("/api/v1/chat/completions", exchange -> {
+            calls[0]++;
+            int status = calls[0] == 1 ? 429 : calls[0] == 2 ? 503 : 200;
+            byte[] bytes = (status == 200 ? sse("{\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}") : "{}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", status == 200 ? "text/event-stream" : "application/json");
+            exchange.sendResponseHeaders(status, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        var deltas = new ArrayList<String>();
+
+        router(BigDecimal.ZERO, false).stream(PROMPT, List.of("a"), deltas::add);
+
+        assertThat(calls[0]).isEqualTo(3);
+        assertThat(deltas).containsExactly("ok");
+    }
+
+    @Test
+    void openrouter_nao_retenta_erro_de_configuracao_nem_depois_de_entregar_texto() {
+        // 402 (configuração/crédito) falha na hora, sem segunda chamada.
+        int[] calls = {0};
+        server.createContext("/api/v1/chat/completions", exchange -> {
+            calls[0]++;
+            exchange.sendResponseHeaders(402, 2);
+            exchange.getResponseBody().write("{}".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        });
+        assertThatIOException().isThrownBy(() -> router(BigDecimal.ZERO, false).stream(PROMPT, List.of("a"), d -> true));
+        assertThat(calls[0]).isEqualTo(1);
+
+        // Erro no meio do stream DEPOIS de um pedaço entregue: retentar duplicaria texto, então a falha sobe na hora.
+        server.removeContext("/api/v1/chat/completions");
+        int[] midCalls = {0};
+        server.createContext("/api/v1/chat/completions", exchange -> {
+            midCalls[0]++;
+            byte[] bytes = sse("{\"choices\":[{\"delta\":{\"content\":\"a\"}}]}", "{\"error\":{\"message\":\"boom\"}}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        assertThatIOException().isThrownBy(() -> router(BigDecimal.ZERO, false).stream(PROMPT, List.of("a"), d -> true))
+                .withMessageNotContaining("boom");
+        assertThat(midCalls[0]).isEqualTo(1);
+    }
+
+    @Test
     void openrouter_com_erro_http_ou_erro_no_meio_do_stream_lanca_ioexception_sem_vazar_detalhe() {
         respond("/api/v1/chat/completions", 402, "application/json", "{\"error\":{\"message\":\"segredo interno\"}}");
 

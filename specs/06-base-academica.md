@@ -62,8 +62,8 @@ Os PDFs ficam fora do Git (são material da instituição, com marca e contato).
 
 Em ordem de valor:
 
-1. **Retries com backoff no OpenRouter** (ementa 1, módulo 2; ementa 2, módulo 2): hoje há fallback de modelo e retratação, mas uma falha transitória de rede não é retentada.
-2. **Cache de respostas/prompt** (ementa 2, módulo 8): perguntas idênticas repetidas pagam o modelo de novo. Avaliar cache por hash da pergunta normalizada + versão do índice.
+1. ~~Retries com backoff no OpenRouter~~ — **feito (2026-10-03)**: 3 tentativas com espera de 400 ms/1,2 s para falha de rede, 408, 429 e 5xx, e nunca depois do primeiro pedaço entregue (duplicaria texto). Erro de configuração (401/402) não retenta.
+2. ~~Cache de respostas~~ — **feito (2026-10-03)**: `AnswerCache` em memória, chave SHA-256 da pergunta normalizada + idioma + versão do índice + versão do prompt; TTL de 6 h, 256 entradas (LRU); só respostas aprovadas pela guarda e sem histórico; o evento `meta` ganha `cached: true`.
 3. **Observabilidade estruturada** (ementa 1, módulo 2): o `trace` por resposta existe; faltam métricas agregadas de latência por etapa (p50/p90) expostas no `/admin`.
 4. **Análise estática no CI** (ementa 1, módulo 9): ligar SpotBugs/PMD (ou ErrorProne) no build.
 5. **Acabamento open source** (ementa 2, capstone): README de raiz com diagrama de arquitetura, instruções de subir local e `CONTRIBUTING.md`; conferir que nenhum valor pessoal reste fora de configuração.

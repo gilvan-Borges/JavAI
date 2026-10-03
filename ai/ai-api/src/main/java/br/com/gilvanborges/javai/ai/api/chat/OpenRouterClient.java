@@ -26,6 +26,9 @@ import java.util.function.Predicate;
 public class OpenRouterClient implements ChatModel {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    /** Tentativas por pergunta. O retry só acontece antes do primeiro pedaço chegar: depois disso repetiria texto. */
+    private static final int ATTEMPTS = 3;
+    private static final Duration[] BACKOFF = {Duration.ofMillis(400), Duration.ofMillis(1200)};
 
     private final HttpClient http;
     private final String baseUrl;
@@ -48,6 +51,40 @@ public class OpenRouterClient implements ChatModel {
 
     @Override
     public Usage stream(PromptBuilder.Prompt prompt, List<String> models, Predicate<String> onDelta) throws IOException {
+        // Falha transitória (rede, 408, 429, 5xx) é retentada com espera crescente, mas SÓ enquanto nenhum pedaço
+        // foi entregue: retentar depois disso duplicaria texto na tela. Erro de configuração (401, 402...) não retenta.
+        boolean[] delivered = {false};
+        IOException last = null;
+        for (int attempt = 1; attempt <= ATTEMPTS; attempt++) {
+            try {
+                return attempt(prompt, models, delta -> {
+                    delivered[0] = true;
+                    return onDelta.test(delta);
+                });
+            } catch (RetryableException e) {
+                last = e;
+                if (delivered[0] || attempt == ATTEMPTS) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(BACKOFF[attempt - 1]);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrompido.", ie);
+                }
+            }
+        }
+        throw last; // inalcançável; o compilador não sabe
+    }
+
+    /** Transitória: vale tentar de novo. A mensagem nunca carrega o corpo da resposta do provedor. */
+    private static final class RetryableException extends IOException {
+        RetryableException(String message) {
+            super(message);
+        }
+    }
+
+    private Usage attempt(PromptBuilder.Prompt prompt, List<String> models, Predicate<String> onDelta) throws IOException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/chat/completions"))
                 .timeout(Duration.ofSeconds(45))
                 .header("Content-Type", "application/json")
@@ -61,10 +98,17 @@ public class OpenRouterClient implements ChatModel {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrompido.", e);
+        } catch (IOException e) {
+            throw new RetryableException("Não consegui falar com o OpenRouter.");
         }
-        if (response.statusCode() != 200) {
+        int status = response.statusCode();
+        if (status != 200) {
             response.body().close();
-            throw new IOException("OpenRouter respondeu HTTP " + response.statusCode());
+            String message = "OpenRouter respondeu HTTP " + status;
+            if (status == 408 || status == 429 || status >= 500) {
+                throw new RetryableException(message);
+            }
+            throw new IOException(message);
         }
 
         String model = models.get(0);
@@ -84,7 +128,8 @@ public class OpenRouterClient implements ChatModel {
                 }
                 JsonNode node = JSON.readTree(data);
                 if (node.has("error")) {
-                    throw new IOException("O provedor devolveu erro no meio do stream.");
+                    // Se nada foi entregue ainda, o chamador retenta; se já foi, a exceção sobe como está.
+                    throw new RetryableException("O provedor devolveu erro no meio do stream.");
                 }
                 model = node.path("model").asString(model);
                 JsonNode usage = node.path("usage");

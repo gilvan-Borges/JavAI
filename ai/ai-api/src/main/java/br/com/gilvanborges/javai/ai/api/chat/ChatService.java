@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -55,6 +56,7 @@ public class ChatService {
     private final IndexHolder index;
     private final QueryEmbedder embedder;
     private final Clock clock;
+    private final AnswerCache cache;
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
 
     public ChatService(ChatProperties props, Turnstile turnstile, QuestionClassifier classifier, ChatModel model,
@@ -72,6 +74,7 @@ public class ChatService {
         this.index = index;
         this.embedder = embedder;
         this.clock = clock;
+        this.cache = new AnswerCache(clock);
     }
 
     /** Visitantes bloqueados agora (para a página de admin). */
@@ -124,6 +127,17 @@ public class ChatService {
             return;
         }
         List<ChatRequest.Turn> history = signer.verified(request.history());
+
+        // A mesma pergunta, já respondida e aprovada pela guarda, sai do cache sem pagar o modelo. Só sem histórico:
+        // com histórico o prompt muda. Os limites por IP de admit() valem igual para resposta de cache.
+        String cacheKey = history.isEmpty() ? cache.key(request.question(), lang, active.versionId()) : null;
+        if (cacheKey != null) {
+            Optional<AnswerCache.Entry> hit = cache.get(cacheKey);
+            if (hit.isPresent()) {
+                replay(hit.get(), request, started, sink);
+                return;
+            }
+        }
 
         // Em paralelo: o Jev classifica e a busca roda. Nenhum depende do outro.
         CompletableFuture<Timed<Optional<Classification>>> classification = CompletableFuture
@@ -226,7 +240,12 @@ public class ChatService {
         }
 
         sink.send("trace", Map.of("step", "guard", "ok", true, "checks", List.of("url", "html", "image", "canary", "citations")));
-        sink.send("sources", citedSources(text, sources));
+        List<Map<String, Object>> cited = citedSources(text, sources);
+        sink.send("sources", cited);
+        if (cacheKey != null) {
+            cache.put(cacheKey, new AnswerCache.Entry(text, cited, used.model(),
+                    (String) meta.get("category"), (String) meta.get("tier")));
+        }
         ChatRequest.Turn turn = signer.sign(turnId, request.question(), text);
         var usageOut = new LinkedHashMap<String, Object>();
         usageOut.put("costUsd", used.costUsd());
@@ -236,6 +255,32 @@ public class ChatService {
         usageOut.put("model", used.model());
         usage.answer(used.model(), used.tokensIn(), used.tokensOut(), used.costUsd(), latency, false);
         sink.send("done", Map.of("turn", turn, "usage", usageOut));
+    }
+
+    /** Reapresenta uma resposta do cache com os mesmos eventos de uma nova; só o turn é assinado na hora. */
+    private void replay(AnswerCache.Entry entry, ChatRequest request, long started, EventSink sink) {
+        sink.send("trace", Map.of("step", "cache", "hit", true));
+        String turnId = UUID.randomUUID().toString();
+        var meta = new LinkedHashMap<String, Object>();
+        meta.put("turnId", turnId);
+        meta.put("category", entry.category());
+        meta.put("tier", entry.tier());
+        meta.put("model", entry.model());
+        meta.put("cached", true);
+        if (!sink.send("meta", meta) || !sink.send("delta", Map.of("text", entry.text()))) {
+            return;
+        }
+        sink.send("sources", entry.sources());
+        int latency = elapsedMs(started);
+        usage.answer(entry.model(), 0, 0, BigDecimal.ZERO, latency, false);
+        var usageOut = new LinkedHashMap<String, Object>();
+        usageOut.put("costUsd", BigDecimal.ZERO);
+        usageOut.put("latencyMs", latency);
+        usageOut.put("tokensIn", 0);
+        usageOut.put("tokensOut", 0);
+        usageOut.put("model", entry.model());
+        usageOut.put("cached", true);
+        sink.send("done", Map.of("turn", signer.sign(turnId, request.question(), entry.text()), "usage", usageOut));
     }
 
     /**

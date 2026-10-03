@@ -115,7 +115,9 @@ final class AdminPages {
                 <div class="note"><strong>Nenhum.</strong> O modelo que responde (<code>%s</code>, via OpenRouter) é de uso geral e nunca foi treinado com os seus
                 dados, e o modelo de embeddings também não foi ajustado. Tudo o que a IA sabe sobre você vem do <strong>RAG</strong>: a cada pergunta ela
                 busca trechos no índice acima e os manda junto no prompt, só para aquela resposta. Para mudar o que ela sabe, basta mudar o conteúdo
-                (CRUD ou repositório) e esperar o indexador: não há retreino. Nenhuma pergunta nem resposta é guardada; só contadores agregados.</div>
+                (CRUD ou repositório) e esperar o indexador: não há retreino. Nenhuma pergunta nem resposta é gravada em banco ou log; só contadores
+                agregados. Respostas recentes ficam algumas horas num cache em memória (só o hash da pergunta + a resposta), para a mesma
+                pergunta não pagar o modelo duas vezes; ele morre com o processo e se invalida quando o índice ou o prompt mudam.</div>
                 """.formatted(esc(String.join(", ", o.chat().modelsFast()))));
         b.append("<h2>O que vai para o modelo a cada pergunta</h2>").append(promptSection());
         b.append("<h2>Uso nos últimos 30 dias</h2>").append(usageSection(o));

@@ -149,8 +149,8 @@ data: {"turn":{"turnId":"01J...","question":"...","answer":"...","issuedAt":"...
 
 | Evento | O que significa | O que o portfólio faz |
 |---|---|---|
-| `meta` | Categoria, nível e modelo escolhidos | Mostra "modelo · categoria · custo · tempo" |
-| `trace` | Uma etapa do pipeline, com dados reais: `classify` (categoria, confiança, ms), `search` (modo `hybrid` ou `bm25`, acertos, modelo de embeddings, ms), `route` (nível e modelos) e `guard` (verificações da guarda de saída). Vem antes do `meta` e do texto | Mostra o caminho da pergunta, como um terminal. Evento desconhecido deve ser ignorado |
+| `meta` | Categoria, nível e modelo escolhidos; `cached: true` quando a resposta saiu do cache em memória (pergunta idêntica já respondida e aprovada pela guarda) | Mostra "modelo · categoria · custo · tempo" |
+| `trace` | Uma etapa do pipeline, com dados reais: `classify` (categoria, confiança, ms), `search` (modo `hybrid` ou `bm25`, acertos, modelo de embeddings, ms), `route` (nível e modelos) e `guard` (verificações da guarda de saída); numa resposta de cache vem só `cache` (hit). Vem antes do `meta` e do texto | Mostra o caminho da pergunta, como um terminal. Evento desconhecido deve ser ignorado |
 | `delta` | Pedaço do texto | Acrescenta com `textContent` |
 | `sources` | As fontes citadas como `[n]` | Transforma cada `[n]` em link. Só o servidor escreve URLs |
 | `done` | Turno assinado e uso | Guarda o turno para o `history` |
