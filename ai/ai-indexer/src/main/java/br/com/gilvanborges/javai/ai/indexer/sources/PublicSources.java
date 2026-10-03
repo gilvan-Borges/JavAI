@@ -97,6 +97,7 @@ public class PublicSources {
                     text = HtmlText.toText(text);
                 }
             }
+            text = ContactRedactor.redact(text);
             var made = PublicTextChunker.chunk(kind, label + " " + hostOf(url), shownUrl(url), shownUrl(url), text);
             chunks.addAll(made);
             hashes.put(HASH_KEY + url, sha256(text));
@@ -149,7 +150,7 @@ public class PublicSources {
             } catch (java.io.IOException noProfileReadme) {
                 // Nem todo usuário tem o repositório de perfil: não é erro.
             }
-            String all = text.toString();
+            String all = ContactRedactor.redact(text.toString());
             var made = PublicTextChunker.chunk(SourceKind.GITHUB_PROFILE, "GitHub " + user, "github:" + user, page, all);
             chunks.addAll(made);
             hashes.put(HASH_KEY + "github:" + user, sha256(all));
