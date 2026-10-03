@@ -167,6 +167,21 @@ data: {"turn":{"turnId":"01J...","question":"...","answer":"...","issuedAt":"...
   - `github.com/FightConnect2025`;
   - `linkedin.com/in/gilvanborges`.
 
+### `GET /admin` (página de administração da IA)
+
+Só leitura, com login fixo. O usuário e a senha (16 caracteres ou mais) vêm de `ADMIN_UI_USER` e `ADMIN_UI_PASSWORD` no `.env` da VPS; sem eles a rota responde 404.
+
+| Rota | O que mostra |
+|---|---|
+| `/admin` | Índice ativo (versão, trechos, vetores, evidências, modelo de embeddings), o que está cadastrado por tipo e idioma, os repositórios lidos (commit, trechos, habilidades detectadas, pulados), evidências por habilidade, como o RAG é usado, o treinamento ("nenhum fine-tuning": só RAG), o prompt que vai ao modelo, o uso dos últimos 30 dias, limites e segurança agora e o que a IA **não** acessa (inclusive a política de arquivos) |
+| `/admin/trechos` | Todos os trechos indexados, com filtro por tipo, idioma e repositório, e o texto de cada um |
+| `/admin/busca?q=` | Os trechos que o RAG mandaria ao modelo para uma pergunta, com a pontuação, sem chamar modelo |
+
+- **Sessão:** cookie `javai_admin`, assinado, `HttpOnly; Secure; SameSite=Strict; Path=/admin`, válido por 8 horas.
+- **Força bruta:** 5 logins errados bloqueiam o IP por 15 minutos, mesmo com a senha certa.
+- **Cabeçalhos:** CSP `default-src 'none'; style-src 'unsafe-inline'` (nenhum script), `no-store`, `X-Frame-Options: DENY`, `noindex`.
+- **Nada é gravado:** nenhuma ação altera índice, CRUD ou configuração. O histórico do indexador (`ops.index_job`) continua fora do alcance do `ai_reader`; a página usa o relatório gravado na própria versão ativa.
+
 ### `GET /v1/stats` e `GET /health`
 
 - **`/v1/stats`:** números agregados dos últimos 30 dias (perguntas, recusas, custo médio, latência p50 e p90, respostas por modelo, chamadas MCP), com `Cache-Control: public, max-age=3600`.

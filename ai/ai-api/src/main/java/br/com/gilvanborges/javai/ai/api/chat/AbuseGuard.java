@@ -56,6 +56,12 @@ public final class AbuseGuard {
         return Optional.of(Duration.between(now, s.bannedUntil));
     }
 
+    /** Quantos visitantes estão bloqueados neste momento. Só a contagem: o serviço não guarda quem são. */
+    public synchronized int blockedCount() {
+        Instant now = clock.instant();
+        return (int) states.values().stream().filter(s -> s.bannedUntil != null && s.bannedUntil.isAfter(now)).count();
+    }
+
     /** Registra uma tentativa de ataque barrada pelo roteador. @return {@code true} se este visitante acabou de ser bloqueado */
     public synchronized boolean recordAttack(String key, double confidence) {
         if (!enabled()) {

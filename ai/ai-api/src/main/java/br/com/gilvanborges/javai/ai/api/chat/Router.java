@@ -16,6 +16,14 @@ public final class Router {
     static final double OFF_TOPIC_THRESHOLD = 0.80;
     static final double ATTACK_THRESHOLD = 0.5;
 
+    public static double offTopicThreshold() {
+        return OFF_TOPIC_THRESHOLD;
+    }
+
+    public static double attackThreshold() {
+        return ATTACK_THRESHOLD;
+    }
+
     public enum Action { ANSWER, REFUSE }
 
     public enum Tier { RAPIDO, FORTE }

@@ -24,6 +24,9 @@ public class JdbcIndexRepository implements IndexRepository {
 
     private static final String ACTIVE_VERSION = "SELECT id, embedding_model FROM index.version";
 
+    private static final String ACTIVE_META = """
+            SELECT id, activated_at, embedding_model, snapshot_etag, stats::text AS stats FROM index.version""";
+
     private static final String CHUNKS = """
             SELECT source_kind, source_ref, lang, title, body, url, embedding
             FROM index.chunk ORDER BY id""";
@@ -43,6 +46,14 @@ public class JdbcIndexRepository implements IndexRepository {
     @Override
     public Optional<Long> activeVersionId() {
         return jdbc.sql(ACTIVE_VERSION).query((rs, n) -> rs.getLong("id")).optional();
+    }
+
+    @Override
+    public Optional<VersionMeta> activeMeta() {
+        return jdbc.sql(ACTIVE_META).query((rs, n) -> new VersionMeta(rs.getLong("id"),
+                rs.getObject("activated_at", java.time.OffsetDateTime.class) == null ? null
+                        : rs.getObject("activated_at", java.time.OffsetDateTime.class).toInstant(),
+                rs.getString("embedding_model"), rs.getString("snapshot_etag"), rs.getString("stats"))).optional();
     }
 
     @Override

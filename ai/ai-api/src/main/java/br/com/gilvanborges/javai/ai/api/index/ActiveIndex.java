@@ -48,6 +48,10 @@ public final class ActiveIndex {
         return chunks.size();
     }
 
+    public List<Chunk> chunks() {
+        return chunks;
+    }
+
     public List<Evidence> evidence() {
         return evidence;
     }

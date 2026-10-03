@@ -210,6 +210,9 @@ services:
       AIAPI_MODEL_DIR: /models
       # Chat (Fase 4). Sem a chave, o Turnstile ou os modelos, o chat responde 503 de manutenção e o MCP segue no ar.
       AIAPI_CHAT_ENABLED: ${JAVAI_CHAT_ENABLED:-true}
+      # Página /admin (só leitura). Sem usuário e senha (16+ caracteres) a rota nem existe.
+      AIAPI_ADMIN_USER: ${ADMIN_UI_USER:-}
+      AIAPI_ADMIN_PASSWORD: ${ADMIN_UI_PASSWORD:-}
       AIAPI_CHAT_OPENROUTER_KEY: ${OPENROUTER_API_KEY:-}
       AIAPI_CHAT_TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
       AIAPI_CHAT_TURNSTILE_HOSTNAMES: ${TURNSTILE_HOSTNAMES:-gilvanborges.com.br,www.gilvanborges.com.br}

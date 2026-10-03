@@ -28,6 +28,15 @@ public class IndexHolder {
         return Optional.ofNullable(current);
     }
 
+    /** Metadados da versão ativa para a página de admin (uma consulta pequena; vazio se o banco falhar). */
+    public Optional<IndexRepository.VersionMeta> meta() {
+        try {
+            return repository.activeMeta();
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
     @Scheduled(initialDelay = 0, fixedDelayString = "${aiapi.reload-interval:PT30S}")
     public void refresh() {
         try {

@@ -74,6 +74,11 @@ public class ChatService {
         this.clock = clock;
     }
 
+    /** Visitantes bloqueados agora (para a página de admin). */
+    public int blockedVisitors() {
+        return abuse.blockedCount();
+    }
+
     /** As camadas que respondem com um status HTTP, antes de abrir o stream. Lança {@link ChatProblem}. */
     public void admit(ChatRequest request, String ip) {
         if (!props.ready() || index.current().isEmpty()) {

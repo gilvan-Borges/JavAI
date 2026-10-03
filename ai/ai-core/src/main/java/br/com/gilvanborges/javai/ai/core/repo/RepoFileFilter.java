@@ -25,6 +25,21 @@ public final class RepoFileFilter {
     private RepoFileFilter() {
     }
 
+    /** Pastas que nunca são lidas, em qualquer nível. */
+    public static java.util.List<String> deniedDirectories() {
+        return DENIED_DIRS.stream().sorted().toList();
+    }
+
+    /** Extensões de código lidas. */
+    public static java.util.List<String> codeExtensions() {
+        return CODE_EXTENSIONS.stream().sorted().toList();
+    }
+
+    /** Arquivos de manifesto lidos (dependências e build). */
+    public static java.util.List<String> manifestNames() {
+        return MANIFESTS.stream().sorted().toList();
+    }
+
     public static boolean allowed(String path, long sizeBytes) {
         if (path == null || path.isBlank() || sizeBytes <= 0 || sizeBytes > MAX_FILE_BYTES) {
             return false;

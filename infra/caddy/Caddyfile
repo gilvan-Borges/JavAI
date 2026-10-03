@@ -93,6 +93,20 @@ https://api.gilvanborges.com.br {
 		max_size 64KB
 	}
 
+	# Página de administração da IA (só leitura, com login). Ela tem política de conteúdo própria (CSS embutido, sem
+	# script), então a do host é substituída aqui, no fim da resposta ("defer"). Nada de /admin é guardado em cache.
+	@admin path /admin /admin/*
+	handle @admin {
+		header >Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+		reverse_proxy ai-api:8080 {
+			header_up X-Real-IP {http.request.client_ip}
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 30s
+			}
+		}
+	}
+
 	@ai path /mcp /health /v1/chat /v1/stats
 	handle @ai {
 		# Só a porta 8080. O actuator, na 8081, nunca é roteado.
