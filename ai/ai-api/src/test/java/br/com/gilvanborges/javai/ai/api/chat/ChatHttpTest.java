@@ -141,8 +141,11 @@ class ChatHttpTest {
         return "10.1." + (++ipSeq / 200) + "." + (ipSeq % 200 + 1);
     }
 
+    private static int qSeq = 0;
+
+    /** Cada chamada ganha um sufixo único: o contexto Spring (e o cache de respostas) é um só para a classe toda. */
     private static String good(String question) {
-        return "{\"question\":\"" + question + "\",\"lang\":\"pt\",\"turnstileToken\":\"good\"}";
+        return "{\"question\":\"" + question + " v" + (++qSeq) + "\",\"lang\":\"pt\",\"turnstileToken\":\"good\"}";
     }
 
     @Test
