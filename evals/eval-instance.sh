@@ -30,6 +30,16 @@ set -a
 . ./.env
 set +a
 
+# A bateria (run.mjs) usa a chave de TESTE do Turnstile, que só aceita o token de teste. O navegador precisa da chave
+# REAL (o widget real só emite token que a chave real aceita): EVAL_REAL_TURNSTILE=1, com o hostname localhost.
+if [[ -n "${EVAL_REAL_TURNSTILE:-}" ]]; then
+  ts_secret="$TURNSTILE_SECRET"
+  ts_hosts="localhost"
+else
+  ts_secret="1x0000000000000000000000000000000AA"
+  ts_hosts="example.com"
+fi
+
 docker rm -f "$name" >/dev/null 2>&1 || true
 # Rede com saída para a internet como principal (é a que permite publicar a porta); a do banco entra em seguida.
 docker run -d --name "$name" \
@@ -42,8 +52,8 @@ docker run -d --name "$name" \
   -e AI_READER_PASSWORD="$AI_READER_PASSWORD" \
   -e AIAPI_MODEL_DIR=/models \
   -e AIAPI_CHAT_OPENROUTER_KEY="$OPENROUTER_API_KEY" \
-  -e AIAPI_CHAT_TURNSTILE_SECRET=1x0000000000000000000000000000000AA \
-  -e AIAPI_CHAT_TURNSTILE_HOSTNAMES=example.com \
+  -e AIAPI_CHAT_TURNSTILE_SECRET="$ts_secret" \
+  -e AIAPI_CHAT_TURNSTILE_HOSTNAMES="$ts_hosts" \
   -e AIAPI_CHAT_HISTORY_SECRET="$(openssl rand -hex 24)" \
   -e AIAPI_CHAT_MODELS_FAST="$fast" \
   -e AIAPI_CHAT_MODELS_STRONG="$strong" \

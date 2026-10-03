@@ -55,7 +55,8 @@ class RouterAndPromptTest {
         assertThat(count(prompt.user(), "</historico>")).isEqualTo(1);
         assertThat(count(prompt.user(), "</turno>")).isEqualTo(1);
         assertThat(prompt.user()).doesNotContain("<SISTEMA>").contains("‹SISTEMA");
-        assertThat(prompt.system()).contains("CNRY-zzz").contains("Brazilian Portuguese").contains("Never write URLs");
+        assertThat(prompt.system()).contains("CNRY-zzz").contains("Brazilian Portuguese").contains("Never write URLs")
+                .contains("language of the visitor's question");
     }
 
     @Test

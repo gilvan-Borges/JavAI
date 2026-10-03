@@ -236,15 +236,23 @@ public class ChatService {
     /**
      * Pergunta de perfil ("onde ele mora?", "onde trabalhou antes?") raramente tem palavra em comum com o trecho certo,
      * e a busca por significado nem sempre o põe entre os 5 primeiros. O perfil e as experiências são poucos e são
-     * exatamente o que esse tipo de pergunta precisa, então entram sempre, na frente. Os trechos da busca vêm depois.
+     * exatamente o que esse tipo de pergunta precisa, então entram sempre, na frente. Pergunta de vaga ganha também a
+     * visão geral dos projetos. Os trechos da busca vêm depois.
      */
     static List<Chunk> withAnchors(List<Chunk> hits, ActiveIndex active, String lang, Router.Decision decision) {
-        if (decision.category() != null && decision.category() != Category.PERFIL) {
+        boolean profile = decision.category() == null || decision.category() == Category.PERFIL;
+        boolean job = decision.category() == Category.VAGA;
+        if (!profile && !job) {
             return hits;
         }
         var all = new ArrayList<Chunk>();
         all.addAll(active.withRef("profile", lang));
         all.addAll(active.ofKind(SourceKind.EXPERIENCE, lang));
+        if (job) {
+            // Quem avalia uma vaga precisa do quadro todo: a visão geral de cada projeto (sem as partes de detalhe).
+            active.ofKind(SourceKind.PROJECT, lang).stream()
+                    .filter(c -> c.sourceRef().indexOf(':', "project:".length()) < 0).forEach(all::add);
+        }
         for (Chunk hit : hits) {
             if (all.stream().noneMatch(c -> c.id().equals(hit.id()))) {
                 all.add(hit);

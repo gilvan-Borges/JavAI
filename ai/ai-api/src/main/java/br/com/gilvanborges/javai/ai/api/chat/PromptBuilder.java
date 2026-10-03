@@ -24,7 +24,7 @@ public final class PromptBuilder {
         String answerIn = lang.equals("pt") ? "Brazilian Portuguese" : "English";
         String system = """
                 You answer questions about Gilvan Borges, a Java/Spring Boot software developer, for visitors of his portfolio \
-                (recruiters and engineers). Answer in %s, in plain text, in at most 4 short sentences.
+                (recruiters and engineers). Answer in the language of the visitor's question (Portuguese or English); if it is unclear, use %s. Write plain text, in at most 4 short sentences.
 
                 Rules:
                 1. Use only the facts inside the <fonte> blocks. If they do not contain the answer, say you did not find it in \

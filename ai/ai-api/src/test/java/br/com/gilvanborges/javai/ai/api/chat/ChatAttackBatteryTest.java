@@ -189,6 +189,15 @@ class ChatAttackBatteryTest {
     }
 
     @Test
+    void pergunta_de_vaga_leva_perfil_experiencias_e_a_visao_geral_dos_projetos() {
+        jev = Optional.of(new Classification(Category.VAGA, 0.9));
+
+        service.answer(question("Por que contratar ele para uma vaga sênior?"), new Sink());
+
+        assertThat(model.lastPrompt.user()).contains("Resumo em português.").contains("Vibetex").contains("Tickets de suporte.");
+    }
+
+    @Test
     void pergunta_de_codigo_nao_ganha_o_perfil_de_graca() {
         jev = Optional.of(new Classification(Category.CODIGO, 0.9));
 
