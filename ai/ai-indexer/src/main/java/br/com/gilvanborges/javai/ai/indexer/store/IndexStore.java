@@ -129,6 +129,11 @@ public class IndexStore {
                 }).list();
     }
 
+    /** Apaga as versões aposentadas e os trechos delas: o reset manual deixa só o índice novo, sem rollback. */
+    public int purgeRetired() {
+        return jdbc.sql("DELETE FROM index.version WHERE status = 'retired'").update();
+    }
+
     public UUID startJob(String trigger) {
         return jdbc.sql(START_JOB).param("trigger", trigger).query(UUID.class).single();
     }

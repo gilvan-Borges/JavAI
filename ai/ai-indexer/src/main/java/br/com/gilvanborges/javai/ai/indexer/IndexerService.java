@@ -172,6 +172,9 @@ public class IndexerService {
                 store.markFailed(versionId, Map.of("motivo", describe(e)));
                 throw e;
             }
+            if (trigger == Trigger.MANUAL) {
+                built.report().put("versoesAntigasApagadas", store.purgeRetired());
+            }
             store.finishJob(job, "succeeded", versionId, built.report());
             LOG.info("Índice {} ativo: {} trechos, {} evidências.", versionId, built.chunks().size(), built.evidence().size());
             return new Outcome("succeeded", versionId, built.report());
