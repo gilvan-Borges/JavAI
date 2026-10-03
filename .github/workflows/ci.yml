@@ -68,3 +68,46 @@ jobs:
           for image in javai-admin-api javai-admin-migrations; do
             docker push "$REGISTRY/$image:$TAG"
           done
+
+  # Deploy na VPS pela Tailscale (spec 01, "Deploy"). Desligado até a variável do repositório
+  # DEPLOY_ENABLED valer "true", o que só acontece depois do primeiro deploy manual (infra/README.md).
+  deploy:
+    name: Deploy na VPS
+    needs: images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    environment: producao
+    concurrency:
+      group: deploy-producao
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      # Aparelho temporário com tag:ci-javai, autenticado por OIDC: nenhum segredo da Tailscale fica no GitHub.
+      # A política da tailnet só deixa o tag:ci-javai chegar na porta 22 da javai-vps. A tag:ci é de outro
+      # projeto da mesma tailnet e não pode ser usada aqui.
+      - uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+        with:
+          oauth-client-id: ${{ vars.TS_OIDC_CLIENT_ID }}
+          audience: ${{ vars.TS_OIDC_AUDIENCE }}
+          tags: tag:ci-javai
+          # Espera a VPS enxergar o aparelho novo antes do SSH (a tailnet propaga peers com atraso).
+          ping: ${{ vars.DEPLOY_HOST }}
+      # O usuário deploy só aceita o SHA do commit (comando forçado). O GITHUB_TOKEN do job vai pelo stdin, só
+      # para baixar as imagens, e expira quando o job termina.
+      - name: Deploy
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.sha }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n%s\n' "$GHCR_USER" "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=30 "deploy@$DEPLOY_HOST" "$TAG"

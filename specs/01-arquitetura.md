@@ -334,7 +334,7 @@ Regras:
 - **Plano KVM 2** (2 vCPU, 8 GB). Com os dois lados no ar, o pico estimado passa de 4 GB, então o KVM 1 não basta.
 - **O build nunca acontece na VPS.** As imagens são geradas no GitHub Actions.
 - **Swap de 2 GB** como rede de segurança. Os números de memória são estimativas, medidos com `docker stats` na Fase 1 e atualizados aqui.
-- **Ubuntu 24.04 LTS.**
+- **Ubuntu 26.04 LTS** (o template da Hostinger já vem com Docker 29).
 - **SSH:** só com chave, sem login de root, acessível só pela Tailscale.
 - **Firewall em duas camadas:**
   - **Firewall do painel da Hostinger** (fora da VM): só a TCP 443, e só das faixas da Cloudflare. É ele que filtra a porta do Caddy, porque **o `ufw` não filtra portas publicadas pelo Docker** (o Docker escreve as próprias regras de iptables antes das do `ufw`).
@@ -351,6 +351,8 @@ Regras:
    - Trivy nas imagens.
 2. **Publicação:** as imagens vão para o GHCR.
 3. **Atualização da VPS:** o deploy entra pela Tailscale com um usuário que só pode executar um comando, atualizar o compose.
+   - **Aparelho do CI:** temporário, com a tag `tag:ci-javai`, autenticado por identidade federada (OIDC), então não há segredo da Tailscale no GitHub.
+   - **Política da tailnet:** a `tag:ci-javai` só chega na porta 22 da `tag:javai`. A tailnet é compartilhada com outro projeto, que já usa a `tag:ci`; as duas nunca se misturam.
 4. **Migrações:** cada lado tem o seu contêiner de migração, que roda antes do app.
 
 As Actions ficam fixadas por SHA, com `permissions` mínimas.

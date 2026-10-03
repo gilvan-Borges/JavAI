@@ -149,9 +149,18 @@ class AdminApiIntegrationTest {
 
         var audit = read(mvc.get().uri("/admin/v1/audit").header(TestTokens.HEADER, TestTokens.owner()).exchange());
 
-        assertThat(audit.size()).isEqualTo(1);
-        assertThat(audit.get(0).get("actor").asString()).isEqualTo(TestTokens.OWNER);
-        assertThat(audit.get(0).get("entity").asString()).isEqualTo("faq");
+        // A auditoria só cresce, então as linhas dos outros testes continuam lá: o teste olha só o que é dele.
+        var faqs = new java.util.ArrayList<JsonNode>();
+        for (JsonNode entry : audit) {
+            assertThat(entry.get("actor").asString()).isEqualTo(TestTokens.OWNER);
+            if ("faq".equals(entry.get("entity").asString())) {
+                faqs.add(entry);
+            }
+        }
+        assertThat(faqs).singleElement().satisfies(entry -> {
+            assertThat(entry.get("action").asString()).isEqualTo("create");
+            assertThat(entry.at("/diff/after/data/answerPt").asString()).isEqualTo("Sim.");
+        });
     }
 
     // --- helpers -------------------------------------------------------------------------------------------

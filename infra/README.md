@@ -29,7 +29,17 @@ As imagens vêm do GHCR, publicadas pelo CI a cada push na `main`. A VPS nunca c
 
 ## 2. VPS (uma vez)
 
-Faça na ordem e **não feche a sessão atual antes de testar a nova**. Se algo travar o SSH, o terminal do navegador do hPanel continua funcionando.
+**Estado em 2026-10-03:** esta seção já foi aplicada na VPS (Ubuntu 26.04, `javai-vps` na Tailscale). Ela fica aqui para reconstruir o servidor do zero.
+
+Faça na ordem e **não feche a sessão atual antes de testar a nova**. Antes de mexer no SSH ou no `ufw`, deixe um rollback agendado, que só é cancelado depois que uma conexão nova funcionar:
+
+```bash
+systemd-run --unit=javai-rollback --on-active=300 /bin/sh -c 'ufw --force disable; rm -f /etc/ssh/sshd_config.d/10-javai.conf; systemctl reload ssh'
+# ...mudanças e teste numa conexão nova...
+systemctl stop javai-rollback.timer
+```
+
+Se algo travar o SSH, o terminal do navegador do hPanel continua funcionando.
 
 **Sistema e usuário:**
 
@@ -43,18 +53,23 @@ adduser gilvan && usermod -aG sudo gilvan
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up
+tailscale up --hostname=javai-vps --accept-dns=false
 tailscale ip -4      # anote; teste "ssh gilvan@<esse-ip>" de outro terminal antes de continuar
+# No painel da Tailscale: Machines → javai-vps → Disable key expiry (senão ela sai da tailnet em ~180 dias)
 ```
 
 **SSH só com chave e sem root:**
 
 ```bash
+# 10- vem antes do 50-cloud-init.conf da Hostinger, que liga a senha; no sshd vale o primeiro valor lido.
 cat > /etc/ssh/sshd_config.d/10-javai.conf <<'EOF'
 PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
+AuthenticationMethods publickey
 AllowUsers gilvan
+MaxAuthTries 3
+X11Forwarding no
 EOF
 sshd -t && systemctl reload ssh
 ```
@@ -65,6 +80,8 @@ sshd -t && systemctl reload ssh
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow in on tailscale0 to any port 22 proto tcp
+# A VPS fica exposta à internet: ela não pode abrir conexão com os outros aparelhos da tailnet.
+ufw deny out on tailscale0
 ufw enable
 ```
 
