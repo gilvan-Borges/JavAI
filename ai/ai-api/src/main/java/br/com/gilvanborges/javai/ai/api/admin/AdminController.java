@@ -55,10 +55,13 @@ public class AdminController {
     private final UsageRecorder recorder;
     private final Clock clock;
     private final IndexerClient indexer;
+    private final String crudUrl;
 
     public AdminController(AdminProperties props, AdminSession session, LoginThrottle throttle, Keys keys, IndexHolder index,
                            QueryEmbedder embedder, ChatProperties chat, ChatService chatService, UsageStore usage,
-                           UsageRecorder recorder, Clock clock, IndexerClient indexer) {
+                           UsageRecorder recorder, Clock clock, IndexerClient indexer,
+                           @org.springframework.beans.factory.annotation.Value("${aiapi.admin.crud-url:}") String crudUrl) {
+        this.crudUrl = crudUrl.strip().replaceAll("/+$", "");
         this.indexer = indexer;
         this.props = props;
         this.session = session;
@@ -161,6 +164,43 @@ public class AdminController {
             case UNAVAILABLE -> "indisponivel";
         };
         return ResponseEntity.status(303).header("Location", "/admin/fontes?aviso=" + key).build();
+    }
+
+    /** O formulário de teste. {@code q} e {@code lang} chegam preenchidos quando se volta do CRUD. */
+    @GetMapping("/admin/treinar")
+    public ResponseEntity<String> trainForm(@RequestParam(name = "q", defaultValue = "") String q,
+                                            @RequestParam(name = "lang", defaultValue = "pt") String lang) {
+        return html(AdminPages.train(TextCleaner.clean(q, false), lang.equals("en") ? "en" : "pt", null, crudUrl, ""));
+    }
+
+    /**
+     * Faz uma pergunta de teste no pipeline REAL (Jev, busca, modelo, guarda), como o visitante, mas sem Turnstile e
+     * sem limites por IP. Custa o mesmo que uma resposta de verdade, então respeita o orçamento diário. Nada é gravado
+     * além dos contadores de uso de sempre.
+     */
+    @PostMapping("/admin/treinar")
+    public ResponseEntity<String> train(HttpServletRequest request, @RequestParam(name = "q", defaultValue = "") String q,
+                                        @RequestParam(name = "lang", defaultValue = "pt") String lang) {
+        if (!"same-origin".equals(request.getHeader("Sec-Fetch-Site"))) {
+            return ResponseEntity.status(403).contentType(HTML).body(AdminPages.loginPage("Pedido de outro site recusado."));
+        }
+        String question = TextCleaner.clean(q, false);
+        String language = lang.equals("en") ? "en" : "pt";
+        ActiveIndex active = index.current().orElse(null);
+        if (active == null) {
+            return html(AdminPages.train(question, language, null, crudUrl, "Não há índice ativo: use \"Buscar dados\" em Fontes antes de testar."));
+        }
+        if (question.length() < 2 || question.length() > 500) {
+            return html(AdminPages.train(question, language, null, crudUrl, "A pergunta precisa ter entre 2 e 500 caracteres."));
+        }
+        if (recorder.spentToday().compareTo(chat.dailyBudgetUsd()) >= 0) {
+            return html(AdminPages.train(question, language, null, crudUrl, "O orçamento diário está esgotado; o teste custaria dinheiro de verdade."));
+        }
+        float[] vector = active.hasVectors() ? embedder.embed(question, active.embeddingModel()).orElse(null) : null;
+        List<HybridSearcher.Hit> hits = active.search(question, vector, language, 8);
+        var collector = new TrainRun.Collector();
+        chatService.answer(new br.com.gilvanborges.javai.ai.api.chat.ChatRequest(question, language, null, List.of()), collector);
+        return html(AdminPages.train(question, language, collector.finish(question, language, hits, vector != null), crudUrl, ""));
     }
 
     @GetMapping("/admin/busca")

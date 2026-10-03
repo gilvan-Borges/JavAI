@@ -53,3 +53,5 @@ aiapi:
     # Porta interna do ai-indexer para o botão "reindexar". Sem token o botão some e a página só avisa.
     indexer-url: ${AIAPI_ADMIN_INDEXER_URL:http://ai-indexer:8080}
     indexer-token: ${AIAPI_ADMIN_INDEXER_TOKEN:}
+    # Endereço do CRUD, para o botão "Corrigir no CRUD" da tela Treinar. Vazio = o botão some.
+    crud-url: ${AIAPI_ADMIN_CRUD_URL:}

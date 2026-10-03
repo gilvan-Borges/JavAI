@@ -225,6 +225,8 @@ services:
       # Página /admin (só leitura). Sem usuário e senha (16+ caracteres) a rota nem existe.
       AIAPI_ADMIN_USER: ${ADMIN_UI_USER:-}
       AIAPI_ADMIN_PASSWORD: ${ADMIN_UI_PASSWORD:-}
+      # Para o botão "Corrigir no CRUD" da tela Treinar: o endereço público do CRUD (vazio = o botão some).
+      AIAPI_ADMIN_CRUD_URL: ${CRUD_PUBLIC_URL:-}
       AIAPI_ADMIN_INDEXER_TOKEN: ${INDEXER_TRIGGER_TOKEN:-}
       AIAPI_CHAT_OPENROUTER_KEY: ${OPENROUTER_API_KEY:-}
       AIAPI_CHAT_TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}

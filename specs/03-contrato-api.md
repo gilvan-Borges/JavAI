@@ -176,6 +176,8 @@ Só leitura, com login fixo. O usuário e a senha (16 caracteres ou mais) vêm d
 | `/admin` | Índice ativo (versão, trechos, vetores, evidências, modelo de embeddings), o que está cadastrado por tipo e idioma, os repositórios lidos (commit, trechos, habilidades detectadas, pulados), evidências por habilidade, como o RAG é usado, o treinamento ("nenhum fine-tuning": só RAG), o prompt que vai ao modelo, o uso dos últimos 30 dias, limites e segurança agora e o que a IA **não** acessa (inclusive a política de arquivos) |
 | `/admin/trechos` | Todos os trechos indexados, com filtro por tipo, idioma e repositório, e o texto de cada um |
 | `/admin/busca?q=` | Os trechos que o RAG mandaria ao modelo para uma pergunta, com a pontuação, sem chamar modelo |
+| `/admin/fontes` | Fontes públicas configuradas, últimas execuções do indexador e os botões "Apagar base de conhecimento" e "Buscar dados" |
+| `/admin/treinar` | **Treinar:** pergunta de teste no pipeline real (como visitante, sem Turnstile nem limites; custa e respeita o orçamento diário), com resposta, fontes, trace e os trechos que a busca recuperou. "Corrigir no CRUD" abre `/admin/faqs` do CRUD com a pergunta preenchida: a correção vira FAQ publicada e entra no índice na próxima indexação. Nada é gravado no banco da IA |
 
 - **Sessão:** cookie `javai_admin`, assinado, `HttpOnly; Secure; SameSite=Strict; Path=/admin`, válido por 8 horas.
 - **Força bruta:** 5 logins errados bloqueiam o IP por 15 minutos, mesmo com a senha certa.
@@ -252,6 +254,7 @@ O CORS do admin é fechado, e o cookie do Access usa `SameSite=Strict`.
 | `PUT /admin/v1/repositories` | Liga ou atualiza um repositório (`fullName`, `kind`, `notePt/En`, `enabled`). O servidor busca fork, branch e tamanho na API do GitHub na hora; privado, inexistente ou fork ligado → 422. Depois, publicar: o indexador lê o snapshot novo em até 5 min |
 | `DELETE /admin/v1/repositories/{owner}/{name}` | Remove da lista (sai do snapshot na próxima publicação) |
 | `GET /admin/repos` | **Tela** (HTML + `/admin/repos.js`, mesmo domínio, sem script inline): formulário para ligar/editar/remover repositórios e botão Publicar, em cima da API acima. Só abre com o JWT do Access |
+| `GET /admin/faqs` | **Tela de FAQ** (HTML + `/admin/faqs.js`): escrever, editar, publicar e apagar perguntas e respostas nos dois idiomas; aceita `?q=` e `?lang=` para vir pré-preenchida da tela Treinar da IA. É assim que se corrige o que a IA responde errado |
 
 Toda escrita vira uma linha em `ops.audit_log`, com o e-mail do JWT e o diff.
 

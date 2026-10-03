@@ -69,6 +69,7 @@ final class AdminPages {
                 + link("/admin", "Visão geral", active.equals("home"))
                 + link("/admin/trechos", "Trechos indexados", active.equals("trechos"))
                 + link("/admin/fontes", "Fontes e reindexação", active.equals("fontes"))
+                + link("/admin/treinar", "Treinar", active.equals("treinar"))
                 + link("/admin/busca", "Testar a busca", active.equals("busca"))
                 + "</nav><form method=\"post\" action=\"/admin/logout\"><button>Sair</button></form></header><main>" + body + "</main></body></html>";
     }
@@ -404,6 +405,91 @@ final class AdminPages {
                     .append("</pre></details>");
         }
         return layout("Busca", "busca", b.toString());
+    }
+
+    // ------------------------------------------------------------------------------------------------ treinar
+
+    /**
+     * A tela "Treinar": pergunta de teste no pipeline real, com a resposta, as fontes, o trace e os trechos que a busca
+     * recuperou. Quem decide se está certo é o dono; se estiver errado, "Corrigir" leva ao CRUD com a pergunta já
+     * preenchida, para escrever a resposta certa como FAQ (que entra no índice na próxima publicação).
+     *
+     * @param run      o resultado, ou {@code null} se ainda não houve teste (ou se ele foi recusado antes de rodar)
+     * @param crudUrl  endereço do CRUD, ou vazio se não configurado (o botão Corrigir some)
+     * @param problem  motivo de o teste não ter rodado, ou vazio
+     */
+    static String train(String question, String lang, TrainRun run, String crudUrl, String problem) {
+        var b = new StringBuilder("<h1>Treinar a IA</h1>");
+        b.append("<p class=\"dim\">Faça uma pergunta como um visitante faria e veja a resposta do pipeline <b>real</b> (custa o mesmo que uma resposta de verdade). ")
+                .append("Se estiver errada ou incompleta, clique em <b>Corrigir no CRUD</b>: você escreve a resposta certa como FAQ, publica, e a IA passa a responder com ela, citando a fonte. ")
+                .append("Isso não treina o modelo: ensina a base de conhecimento, e cada correção pode ser conferida de novo depois.</p>");
+        b.append("<form method=\"post\" action=\"/admin/treinar\" class=\"filters\"><input name=\"q\" value=\"").append(esc(question))
+                .append("\" maxlength=\"500\" required placeholder=\"Ele já usou RabbitMQ?\" style=\"min-width:26rem\">")
+                .append("<select name=\"lang\"><option value=\"pt\"").append(lang.equals("pt") ? " selected" : "").append(">pt</option><option value=\"en\"")
+                .append(lang.equals("en") ? " selected" : "").append(">en</option></select><button>Perguntar</button></form>");
+        if (!problem.isEmpty()) {
+            b.append("<p class=\"warn\">").append(esc(problem)).append("</p>");
+        }
+        if (run == null) {
+            return layout("Treinar", "treinar", b.toString());
+        }
+
+        b.append("<h2>Resposta</h2>");
+        if (run.refusal() != null) {
+            b.append("<div class=\"note\"><b>O pipeline recusou esta pergunta.</b> ").append(esc(run.refusal())).append("</div>");
+        } else if (run.error() != null) {
+            b.append("<p class=\"err\">Erro ao gerar a resposta: ").append(esc(run.error())).append("</p>");
+        } else if (run.retracted()) {
+            b.append("<p class=\"err\">A guarda de saída retratou esta resposta (URL, HTML, canário ou citação inválida).</p>");
+        } else {
+            b.append("<pre>").append(esc(run.answer())).append("</pre>");
+        }
+        if (!run.usage().isEmpty()) {
+            b.append("<p class=\"dim\">Modelo <code>").append(esc(String.valueOf(run.usage().get("model")))).append("</code> · ")
+                    .append(esc(String.valueOf(run.usage().get("latencyMs")))).append(" ms · US$ ").append(esc(String.valueOf(run.usage().get("costUsd"))))
+                    .append(run.meta().get("cached") != null ? " · <b>veio do cache</b> (mesma pergunta já respondida)" : "").append("</p>");
+        }
+
+        if (!crudUrl.isEmpty()) {
+            String link = crudUrl + "/admin/faqs?q=" + java.net.URLEncoder.encode(run.question(), java.nio.charset.StandardCharsets.UTF_8)
+                    + "&lang=" + run.lang();
+            b.append("<p><a href=\"").append(esc(link)).append("\" target=\"_blank\" rel=\"noopener\"><button type=\"button\">Corrigir no CRUD</button></a> ")
+                    .append("<span class=\"dim\">abre o formulário de FAQ com esta pergunta; depois de publicar, teste de novo aqui.</span></p>");
+        }
+
+        if (!run.sources().isEmpty()) {
+            b.append("<h2>Fontes citadas</h2><table><tr><th>[n]</th><th>Título</th><th>Link</th></tr>");
+            for (var s : run.sources()) {
+                b.append("<tr><td>").append(esc(String.valueOf(s.get("ref")))).append("</td><td>").append(esc(String.valueOf(s.get("title"))))
+                        .append("</td><td>").append(esc(String.valueOf(s.get("url")))).append("</td></tr>");
+            }
+            b.append("</table>");
+        }
+
+        b.append("<h2>Caminho no pipeline</h2><table><tr><th>Etapa</th><th>Detalhe</th></tr>");
+        for (var t : run.traces()) {
+            var detail = new StringBuilder();
+            t.forEach((k, v) -> {
+                if (!k.equals("step")) {
+                    detail.append(k).append("=").append(v).append("  ");
+                }
+            });
+            b.append("<tr><td>").append(esc(String.valueOf(t.get("step")))).append("</td><td><code>").append(esc(detail.toString().strip())).append("</code></td></tr>");
+        }
+        b.append("</table>");
+
+        b.append("<h2>Trechos que a busca recuperou (top ").append(run.hits().size()).append(", ")
+                .append(run.vector() ? "híbrido" : "só BM25").append(")</h2>")
+                .append("<p class=\"dim\">Se o trecho certo não está aqui, o problema é de conteúdo ou de busca, não do modelo.</p>");
+        int rank = 1;
+        for (HybridSearcher.Hit hit : run.hits()) {
+            Chunk c = hit.chunk();
+            b.append("<details class=\"chunk\"><summary><b>").append(rank++).append(".</b> <span class=\"tag\">").append(esc(c.kind().db())).append("</span> ")
+                    .append(esc(c.title())).append(" <small>RRF ").append(String.format(java.util.Locale.ROOT, "%.4f", hit.score())).append("</small></summary>")
+                    .append("<p class=\"dim\"><code>").append(esc(c.sourceRef())).append("</code></p><pre>")
+                    .append(esc(c.body().length() > 700 ? c.body().substring(0, 700) + "…" : c.body())).append("</pre></details>");
+        }
+        return layout("Treinar", "treinar", b.toString());
     }
 
     // ------------------------------------------------------------------------------------------------ apoio
