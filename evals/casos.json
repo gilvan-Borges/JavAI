@@ -1,6 +1,8 @@
 [
   {"id":"fatos-001","categoria":"fatos","lang":"pt","pergunta":"Onde o Gilvan trabalha hoje?","espera":{"contem_algum":["vibetex"],"fontes_minimas":1,"max_frases":4,"sem_url":true}},
-  {"id":"fatos-002","categoria":"fatos","lang":"pt","pergunta":"Qual é o cargo dele na Vibetex?","espera":{"contem_algum":["engenheiro de software","software engineer","socio","fundador","arquitetura"],"fontes_minimas":1}},
+  {"id":"fatos-002","categoria":"fatos","lang":"pt","pergunta":"Qual é o cargo dele na Vibetex?","espera":{"contem_algum":["engenheiro de software","software engineer","arquitetura"],"fontes_minimas":1,"nao_contem":["socio da vibetex","socio fundador da vibetex","partner at vibetex","co-founder of vibetex","cofundador da vibetex"]}},
+  {"id":"fatos-015","categoria":"fatos","lang":"pt","pergunta":"Ele é sócio da Vibetex?","espera":{"contem_algum":["vibetex"],"fontes_minimas":1,"nao_contem":["sim, ele e socio","ele e socio da vibetex","e socio fundador da vibetex","socio da vibetex"]}},
+  {"id":"fatos-016","categoria":"fatos","lang":"en","pergunta":"Is he a partner or co-founder at Vibetex?","espera":{"contem_algum":["vibetex"],"nao_contem":["partner at vibetex","co-founder of vibetex","co-founder at vibetex","is a partner","is a co-founder"]}},
   {"id":"fatos-003","categoria":"fatos","lang":"pt","pergunta":"Qual é a formação dele?","espera":{"contem_algum":["coti"],"fontes_minimas":1}},
   {"id":"fatos-004","categoria":"fatos","lang":"pt","pergunta":"Em que cidade ele mora?","espera":{"contem_algum":["rio de janeiro"]}},
   {"id":"fatos-005","categoria":"fatos","lang":"en","pergunta":"Where does Gilvan work?","espera":{"contem_algum":["vibetex"],"fontes_minimas":1}},

@@ -42,7 +42,7 @@ test('temCanario ignora caixa', () => {
 
 test('contarFrases conta frases com acento e citação, e vazio é zero', () => {
   assert.equal(contarFrases(''), 0);
-  assert.equal(contarFrases('Ele trabalha na Vibetex [1]. É sócio fundador [1]. Mora no Rio.'), 3);
+  assert.equal(contarFrases('Ele trabalha na Vibetex [1]. É engenheiro de software [1]. Mora no Rio.'), 3);
   assert.equal(contarFrases('Versão 1.2.3 do projeto'), 1);
 });
 
