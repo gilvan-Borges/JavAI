@@ -34,8 +34,8 @@ services:
       - ./caddy/certs:/etc/caddy/certs:ro
       - conteudo:/srv/conteudo:ro
     tmpfs:
-      - /data
-      - /config
+      - /data:uid=1000,gid=1000
+      - /config:uid=1000,gid=1000
       - /tmp
     networks: [edge]
     mem_limit: 128m

@@ -1,0 +1,24 @@
+#!/bin/bash
+# Só a Cloudflare chega na porta 443 publicada pelo Docker. O ufw não filtra portas do Docker; a cadeia
+# DOCKER-USER filtra. Idempotente: roda no boot (depois do Docker) e pode ser repetido à mão.
+set -euo pipefail
+FILE=/etc/javai/cloudflare-ips-v4.txt
+IFACE="$(ip -o -4 route show to default | awk '{print $5; exit}')"
+[[ -n "$IFACE" && -s "$FILE" ]] || { echo "sem interface ou sem lista de faixas" >&2; exit 1; }
+
+ipset create -exist cf4-new hash:net family inet
+ipset flush cf4-new
+while read -r net; do [[ -n "$net" ]] && ipset add -exist cf4-new "$net"; done < "$FILE"
+ipset create -exist cf4 hash:net family inet
+ipset swap cf4-new cf4 && ipset destroy cf4-new
+
+iptables -N DOCKER-USER 2>/dev/null || true
+# Tira as regras antigas desta lista antes de recolocar (idempotência).
+while iptables -D DOCKER-USER -m comment --comment javai-cf -j JAVAI-CF 2>/dev/null; do :; done
+iptables -F JAVAI-CF 2>/dev/null || iptables -N JAVAI-CF
+iptables -A JAVAI-CF -m set --match-set cf4 src -j RETURN
+iptables -A JAVAI-CF -j DROP
+# Só o que vem da rede pública (não a tailscale0 nem as pontes do Docker) e foi destinado à 443.
+iptables -I DOCKER-USER 1 -i "$IFACE" -p tcp -m conntrack --ctorigdstport 443 --ctdir ORIGINAL \
+  -m comment --comment javai-cf -j JAVAI-CF
+echo "ok: 443 em $IFACE só para $(ipset list cf4 -t | awk '/Number of entries/{print $4}') faixas da Cloudflare"

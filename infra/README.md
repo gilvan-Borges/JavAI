@@ -85,7 +85,19 @@ ufw deny out on tailscale0
 ufw enable
 ```
 
-**Firewall do painel da Hostinger** (hPanel → VPS → Segurança → Firewall):
+**Firewall da 443 na própria VM** (cadeia `DOCKER-USER`; o `ufw` não filtra portas do Docker). Os arquivos estão em [`deploy/`](deploy):
+
+```bash
+apt install -y ipset
+install -d /etc/javai && install -m 644 deploy/cloudflare-ips-v4.txt /etc/javai/cloudflare-ips-v4.txt
+install -m 755 deploy/javai-cf-firewall /usr/local/sbin/javai-cf-firewall
+install -m 644 deploy/javai-cf-firewall.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now javai-cf-firewall
+```
+
+Teste de fora da Cloudflare: `curl -sk -m 8 https://<IP-da-VPS>/` não pode nem conectar. A lista de faixas é a de https://www.cloudflare.com/ips-v4; revise a cada trimestre, junto com a do Caddyfile, e rode `javai-cf-firewall` de novo.
+
+**Firewall do painel da Hostinger** (opcional, segunda camada; hPanel → VPS → Segurança → Firewall):
 - uma regra *Accept* TCP 443 para cada faixa de https://www.cloudflare.com/ips (IPv4 e IPv6);
 - tudo o mais descartado;
 - nenhuma regra para a 22: o SSH entra pela Tailscale.

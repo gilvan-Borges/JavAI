@@ -1,0 +1,13 @@
+[Unit]
+Description=JavAI: 443 só para a Cloudflare (DOCKER-USER)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/javai-cf-firewall
+
+[Install]
+WantedBy=multi-user.target

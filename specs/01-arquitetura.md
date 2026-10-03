@@ -337,7 +337,8 @@ Regras:
 - **Ubuntu 26.04 LTS** (o template da Hostinger já vem com Docker 29).
 - **SSH:** só com chave, sem login de root, acessível só pela Tailscale.
 - **Firewall em duas camadas:**
-  - **Firewall do painel da Hostinger** (fora da VM): só a TCP 443, e só das faixas da Cloudflare. É ele que filtra a porta do Caddy, porque **o `ufw` não filtra portas publicadas pelo Docker** (o Docker escreve as próprias regras de iptables antes das do `ufw`).
+  - **Cadeia `DOCKER-USER` do iptables, na VM** (`javai-cf-firewall`, unidade systemd): só a TCP 443 vinda das faixas IPv4 da Cloudflare chega ao Caddy; o resto é descartado. Esta é a camada que filtra a porta do Caddy, porque **o `ufw` não filtra portas publicadas pelo Docker** (o Docker escreve as próprias regras de iptables antes das do `ufw`). O IPv6 não chega aos contêineres: o `ufw` descarta a entrada.
+  - **Firewall do painel da Hostinger** (fora da VM), opcional como segunda camada: a mesma regra, TCP 443 só das faixas da Cloudflare.
   - **`ufw` na VM:** nega toda entrada, exceto a 22 na interface `tailscale0`. Ele protege os serviços do próprio sistema, não os contêineres.
   - Se uma das camadas falhar, o Authenticated Origin Pulls ainda recusa qualquer TLS que não venha da Cloudflare.
 - **Atualizações e proteção:** `unattended-upgrades`. Como o SSH só existe na Tailscale, o CrowdSec fica opcional.
