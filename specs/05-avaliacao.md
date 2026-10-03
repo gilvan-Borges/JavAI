@@ -123,6 +123,17 @@ Regras para entrar na lista do roteador:
 
 O resultado vira nota técnica e post: "testei N modelos do OpenRouter contra a mesma bateria".
 
+## Estado da Fase 4
+
+| Parte | Estado |
+|---|---|
+| Defesas que não dependem de modelo: validação, Turnstile, limites por minuto e por dia, disjuntor de gasto, histórico assinado, roteador, recusa sem chamar o modelo, guarda de saída (URL, HTML, imagem, canário, citação inexistente), cancelamento | Feitas e provadas em `ChatAttackBatteryTest` (um modelo de mentira "obedece" cada ataque e o servidor barra mesmo assim), `OutputGuardTest`, `HistoryAndRequestTest` e `ChatHttpTest` |
+| Clientes do OpenRouter, do Jev e do Turnstile | Feitos, testados contra servidores locais (`ExternalClientsTest`) |
+| Bateria com modelos reais (`evals`, YAML, juiz do Jev, comparação de modelos) | **Pendente.** Precisa da chave do OpenRouter e do Turnstile de teste; é ela que escolhe os modelos de `JAVAI_MODELS_*` e calibra os limiares do roteador |
+| Perguntas legítimas (80 ou mais) e variações de ataque | Pendentes, junto com a bateria real |
+
+Enquanto a bateria real não rodar, nenhum modelo está configurado e o chat fica em manutenção. Isso é de propósito: a regra desta spec é que um modelo só entra depois de passar.
+
 ## Critérios para lançar
 
 Valem para o lançamento da Fase 4 e para toda mudança de prompt, modelo, roteador ou guarda:

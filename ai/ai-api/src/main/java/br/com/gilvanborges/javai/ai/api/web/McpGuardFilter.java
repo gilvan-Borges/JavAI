@@ -17,9 +17,12 @@ import java.nio.charset.StandardCharsets;
 public class McpGuardFilter extends OncePerRequestFilter {
 
     private final RateLimiter limiter;
+    private final Runnable onCall;
 
-    public McpGuardFilter(RateLimiter limiter) {
+    /** @param onCall chamado a cada chamada aceita (conta as chamadas MCP do dia em {@code ops.usage_daily}) */
+    public McpGuardFilter(RateLimiter limiter, Runnable onCall) {
         this.limiter = limiter;
+        this.onCall = onCall;
     }
 
     @Override
@@ -28,7 +31,7 @@ public class McpGuardFilter extends OncePerRequestFilter {
         response.setHeader("Cache-Control", "no-store");
         response.setHeader("X-Content-Type-Options", "nosniff");
 
-        long retryAfter = limiter.tryAcquire(clientKey(request));
+        long retryAfter = limiter.tryAcquire(ClientIp.of(request));
         if (retryAfter > 0) {
             response.setStatus(429);
             response.setHeader("Retry-After", Long.toString(retryAfter));
@@ -38,14 +41,7 @@ public class McpGuardFilter extends OncePerRequestFilter {
                     + "\"status\":429,\"detail\":\"Limit of calls per minute reached. Try again shortly.\"}");
             return;
         }
+        onCall.run();
         chain.doFilter(request, response);
-    }
-
-    static String clientKey(HttpServletRequest request) {
-        String real = request.getHeader("X-Real-IP");
-        if (real != null && !real.isBlank() && real.length() <= 64) {
-            return real.strip();
-        }
-        return request.getRemoteAddr();
     }
 }

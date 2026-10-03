@@ -270,10 +270,10 @@ Valores iniciais propostos:
 | `postgres-ai` | `ai-data` (interna) | nenhuma | 384 MB | 2 |
 | `ai-migrate` | `ai-data` | nenhuma | roda e sai | 2 |
 | `ai-indexer` | `ai-egress`, `ai-data` | nenhuma | 1 GB | 2 |
-| `ai-api` | `ai-edge`, `ai-data` | nenhuma | 512 MB | 3 |
+| `ai-api` | `ai-edge`, `ai-data`, `ai-egress` | nenhuma | 512 MB | 3 e 4 |
 
 - **Isolamento de rede:** os contêineres da IA não entram na rede `admin-data`, então o `postgres-admin` é inalcançável para eles. O `ai-indexer` também não usa a rede `edge` do CRUD: ele sai para a internet por uma rede própria, a `ai-egress`, e por isso não enxerga o `admin-api` nem o Caddy.
-- **Rede do `ai-api`:** ele fica em `ai-edge` (só com o Caddy) e `ai-data` (só com o `postgres-ai`). As duas são `internal`, então ele não tem saída para a internet e não alcança o `admin-api`: o modelo de embeddings vem do volume `ai-models`, que o `ai-indexer` baixa e verifica, e o `ai-api` só lê (montado `ro`).
+- **Rede do `ai-api`:** `ai-edge` (só com o Caddy), `ai-data` (só com o `postgres-ai`) e `ai-egress` (só para sair à internet: Turnstile, Jev e OpenRouter). Nenhuma das três tem contêiner do CRUD, então ele não alcança o `admin-api`. O modelo de embeddings vem do volume `ai-models`, que o `ai-indexer` baixa e verifica e o `ai-api` só lê (montado `ro`).
 - **`/tmp` do `ai-indexer` e do `ai-api` com `exec`:** o ONNX Runtime e o tokenizador extraem as bibliotecas nativas do jar para o diretório temporário e as carregam de lá, e o Docker monta `tmpfs` sem permissão de execução por padrão.
 - **Por que não há Redis:** o `ai-api` é uma instância só. O rate limit fica em memória e o gasto diário fica no `postgres-ai`.
 - **O Docker ignora o `ufw`:** uma porta publicada fica aberta para a internet mesmo com o firewall bloqueando. Por isso só o Caddy publica porta, e só a 443. Com o modo Full (strict) da Cloudflare, a porta 80 não é necessária.

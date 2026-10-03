@@ -93,6 +93,19 @@ O CORS não protege a API: um `curl` ignora CORS. Quem protege é o Turnstile, o
 | 503 | `/problems/budget-exhausted` | Disjuntor de gasto aberto, com `Retry-After` até a meia-noite |
 | 503 | `/problems/maintenance` | Chat desligado pela chave de emergência |
 
+### Configuração do chat
+
+O chat só atende com tudo isto configurado no `.env` da VPS; sem alguma peça, responde `503 /problems/maintenance` e o MCP segue no ar. Nenhum valor tem padrão.
+
+| Variável | O que é |
+|---|---|
+| `OPENROUTER_API_KEY` | Chave do OpenRouter, usada no chat e no Jev (a API de decisão também passa pelo OpenRouter) |
+| `TURNSTILE_SECRET` | Chave secreta do Turnstile |
+| `HISTORY_SECRET` | Segredo-mestre (HKDF) das assinaturas do histórico, das chaves do dia e do canário |
+| `JAVAI_MODELS_FAST`, `JAVAI_MODELS_STRONG` | Modelos de cada nível, o principal primeiro e os fallbacks depois |
+| `JAVAI_MAX_PRICE_COMPLETION`, `JAVAI_DAILY_BUDGET_USD` | Teto de preço por milhão de tokens e teto de gasto por dia |
+| `JAVAI_CHAT_ENABLED` | Chave de emergência |
+
 ### `POST /v1/chat`
 
 **Requisição:**

@@ -523,18 +523,7 @@ public class McpTools {
      * Mantém acento e caixa. {@code keepNewlines} preserva as quebras de linha (descrição de vaga).
      */
     static String cleanText(String text, boolean keepNewlines) {
-        String nfkc = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFKC);
-        var sb = new StringBuilder(nfkc.length());
-        nfkc.codePoints().forEach(cp -> {
-            if (cp == '\n' && keepNewlines) {
-                sb.append('\n');
-            } else if (Character.isWhitespace(cp)) {
-                sb.append(' ');
-            } else if (!Character.isISOControl(cp) && Character.getType(cp) != Character.FORMAT) {
-                sb.appendCodePoint(cp);
-            }
-        });
-        return sb.toString().replaceAll(" {2,}", " ").replaceAll("\n{3,}", "\n\n").strip();
+        return br.com.gilvanborges.javai.ai.api.text.TextCleaner.clean(text, keepNewlines);
     }
 
     private static String fold(String text) {

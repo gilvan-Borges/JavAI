@@ -22,14 +22,22 @@ class ArchitectureTest {
             .because("as ferramentas só leem o índice em memória: nada de SQL, rede nem arquivos (spec 04)");
 
     @ArchTest
-    static final ArchRule so_o_leitor_de_indice_fala_com_o_banco = noClasses()
-            .that().resideOutsideOfPackage("..api.index..")
+    static final ArchRule so_as_classes_jdbc_falam_com_o_banco = noClasses()
+            .that().haveSimpleNameNotStartingWith("Jdbc")
             .should().dependOnClassesThat().resideInAnyPackage("java.sql..", "org.springframework.jdbc..")
-            .because("o acesso ao banco fica num lugar só, com SQL constante");
+            .because("o acesso ao banco fica nas classes Jdbc*, com SQL constante e parâmetros nomeados");
 
     @ArchTest
     static final ArchRule nao_depende_do_crud_nem_do_indexador = noClasses()
             .should().dependOnClassesThat().resideInAnyPackage(
                     "br.com.gilvanborges.javai.admin..", "br.com.gilvanborges.javai.ai.indexer..")
             .because("a API não conhece o CRUD, e o indexador é outro processo (spec 01, isolamento)");
+
+    @ArchTest
+    static final ArchRule o_chat_so_chama_a_rede_pelos_clientes_externos = noClasses()
+            .that().resideInAPackage("..api.chat..")
+            .and().haveSimpleNameNotEndingWith("Classifier").and().haveSimpleNameNotStartingWith("OpenRouter")
+            .and().haveSimpleNameNotStartingWith("Turnstile").and().doNotHaveSimpleName("ChatConfig")
+            .should().dependOnClassesThat().resideInAnyPackage("java.net.http..")
+            .because("só o Jev, o OpenRouter e o Turnstile falam com a internet, e cada um tem a sua classe");
 }

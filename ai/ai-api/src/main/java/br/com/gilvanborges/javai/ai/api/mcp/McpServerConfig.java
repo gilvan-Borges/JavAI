@@ -1,6 +1,7 @@
 package br.com.gilvanborges.javai.ai.api.mcp;
 
 import br.com.gilvanborges.javai.ai.api.AiApiProperties;
+import br.com.gilvanborges.javai.ai.api.usage.UsageRecorder;
 import br.com.gilvanborges.javai.ai.api.web.McpGuardFilter;
 import br.com.gilvanborges.javai.ai.api.web.RateLimiter;
 import io.modelcontextprotocol.json.McpJsonDefaults;
@@ -65,9 +66,9 @@ public class McpServerConfig {
     }
 
     @Bean
-    FilterRegistrationBean<McpGuardFilter> mcpGuard(AiApiProperties properties) {
+    FilterRegistrationBean<McpGuardFilter> mcpGuard(AiApiProperties properties, UsageRecorder usage) {
         var registration = new FilterRegistrationBean<>(
-                new McpGuardFilter(new RateLimiter(properties.rateLimitPerMinute(), Clock.systemUTC())));
+                new McpGuardFilter(new RateLimiter(properties.rateLimitPerMinute(), Clock.systemUTC()), usage::mcpCall));
         registration.addUrlPatterns("/mcp");
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return registration;

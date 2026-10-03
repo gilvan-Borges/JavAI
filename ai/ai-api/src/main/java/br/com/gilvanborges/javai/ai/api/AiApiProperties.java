@@ -24,4 +24,9 @@ public record AiApiProperties(
         @DefaultValue("/models") String modelDir,
         @DefaultValue("2") int embeddingThreads,
         @DefaultValue("https://gilvanborges.com.br") String siteUrl) {
+
+    public AiApiProperties {
+        allowedOrigins = allowedOrigins == null ? List.of() : allowedOrigins.stream()
+                .flatMap(v -> java.util.Arrays.stream(v.split(","))).map(String::strip).filter(v -> !v.isEmpty()).toList();
+    }
 }

@@ -44,6 +44,11 @@ class McpHttpTest {
         IndexRepository indexRepository() {
             return ApiFixtures.repository(ApiFixtures.index());
         }
+
+        @Bean
+        br.com.gilvanborges.javai.ai.api.usage.UsageStore usageStore() {
+            return new ApiFixtures.MemoryStore();
+        }
     }
 
     private static final JsonMapper JSON = JsonMapper.builder().build();

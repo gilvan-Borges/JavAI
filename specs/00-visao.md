@@ -80,7 +80,7 @@ O repositório tem dois serviços isolados, o **CRUD** e a **IA**, sem código, 
 | 1 | **CRUD:** banco do admin com papéis e RLS testados, admin-api com CRUD e Swagger UI atrás do Cloudflare Access, publicação do snapshot estático para o portfólio, docker-compose da VPS | Não |
 | 2 | **Fundação da IA:** banco da IA, `ai-core`, `ai-indexer` (snapshot e GitHub), evidências de habilidades, embeddings locais, busca híbrida e avaliação da busca | Não |
 | 3 | Servidor MCP só de leitura (`ai-api`) | Feita e no ar (`POST https://api.gilvanborges.com.br/mcp`) |
-| 4 | Bateria de ataques (escrita antes do prompt), chat com OpenRouter, roteador Jev, guardas, Turnstile | Sim |
+| 4 | Bateria de ataques (escrita antes do prompt), chat com OpenRouter, roteador Jev, guardas, Turnstile | Código e bateria de defesas no ar; o chat responde 503 de manutenção até as chaves e os modelos serem configurados ([05](05-avaliacao.md#estado-da-fase-4)) |
 | 5 | Painel público, comparação de modelos, notas técnicas | Sim |
 
 As três primeiras fases não gastam nada com modelo e já entregam valor: o portfólio passa a ler o conteúdo do CRUD, e o MCP já responde com evidência.

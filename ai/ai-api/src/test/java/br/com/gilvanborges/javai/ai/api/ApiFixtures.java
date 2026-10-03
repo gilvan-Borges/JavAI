@@ -3,6 +3,7 @@ package br.com.gilvanborges.javai.ai.api;
 import br.com.gilvanborges.javai.ai.api.index.ActiveIndex;
 import br.com.gilvanborges.javai.ai.api.index.IndexHolder;
 import br.com.gilvanborges.javai.ai.api.index.IndexRepository;
+import br.com.gilvanborges.javai.ai.api.usage.UsageStore;
 import br.com.gilvanborges.javai.ai.core.chunk.Chunk;
 import br.com.gilvanborges.javai.ai.core.chunk.SnapshotChunker;
 import br.com.gilvanborges.javai.ai.core.chunk.SourceKind;
@@ -71,5 +72,26 @@ public final class ApiFixtures {
         var holder = new IndexHolder(repository(index));
         holder.refresh();
         return holder;
+    }
+
+    /** Contadores em memória: soma como o upsert do banco e guarda tudo para os testes conferirem. */
+    public static final class MemoryStore implements UsageStore {
+        public final List<Day> rows = new ArrayList<>();
+        public java.math.BigDecimal preset = java.math.BigDecimal.ZERO;
+
+        @Override
+        public java.math.BigDecimal spentOn(java.time.LocalDate day) {
+            return preset;
+        }
+
+        @Override
+        public synchronized void add(Day delta) {
+            rows.add(delta);
+        }
+
+        @Override
+        public synchronized List<Day> since(java.time.LocalDate from) {
+            return List.copyOf(rows);
+        }
     }
 }
