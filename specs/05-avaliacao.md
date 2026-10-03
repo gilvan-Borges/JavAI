@@ -1,6 +1,6 @@
 # 05 · Avaliação
 
-**Status:** rascunho · **Atualizada em:** 2026-10-02
+**Status:** implementada · **Atualizada em:** 2026-10-03
 
 ## Por que esta spec vem antes do prompt
 

@@ -1,6 +1,6 @@
 # 03 · Contrato da API
 
-**Status:** rascunho · **Atualizada em:** 2026-10-02
+**Status:** implementada · **Atualizada em:** 2026-10-03
 
 Este é o contrato entre os dois serviços e quem os consome: o portfólio, os clientes MCP e o Gilvan pelo Swagger UI. O OpenAPI 3.1 de cada app é gerado pelo springdoc e precisa bater com esta spec.
 

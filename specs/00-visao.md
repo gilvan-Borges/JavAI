@@ -1,6 +1,6 @@
 # 00 · Visão
 
-**Status:** rascunho · **Atualizada em:** 2026-10-02
+**Status:** aprovada · **Atualizada em:** 2026-10-03
 
 ## Em uma frase
 

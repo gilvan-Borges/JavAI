@@ -1,6 +1,6 @@
 # 01 · Arquitetura
 
-**Status:** rascunho · **Atualizada em:** 2026-10-02
+**Status:** implementada · **Atualizada em:** 2026-10-03
 
 ## Visão geral
 

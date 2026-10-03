@@ -1,6 +1,6 @@
 # 04 · Modelo de ameaças
 
-**Status:** rascunho · **Atualizada em:** 2026-10-02
+**Status:** implementada · **Atualizada em:** 2026-10-03
 
 O JavAI fica aberto para qualquer pessoa na internet. Esta spec lista o que precisa ser protegido, de quem, como e qual teste prova que a proteção funciona. Controle sem teste é só intenção.
 

@@ -1,6 +1,6 @@
 # 02 · Dados e acesso
 
-**Status:** rascunho · **Atualizada em:** 2026-10-02
+**Status:** implementada · **Atualizada em:** 2026-10-03
 
 ## O princípio
 
