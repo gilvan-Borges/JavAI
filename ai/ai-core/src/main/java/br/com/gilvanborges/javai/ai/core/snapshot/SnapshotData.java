@@ -18,13 +18,18 @@ public record SnapshotData(
         List<Faq> faq,
         List<Repository> repositories) {
 
+    /** Campos de lista ausentes no JSON (por exemplo "repositories" em snapshots antigos) viram lista vazia. */
     public SnapshotData {
-        experiences = List.copyOf(experiences);
-        projects = List.copyOf(projects);
-        skills = List.copyOf(skills);
-        education = List.copyOf(education);
-        faq = List.copyOf(faq);
-        repositories = List.copyOf(repositories);
+        experiences = copy(experiences);
+        projects = copy(projects);
+        skills = copy(skills);
+        education = copy(education);
+        faq = copy(faq);
+        repositories = copy(repositories);
+    }
+
+    private static <T> List<T> copy(List<T> list) {
+        return list == null ? List.of() : List.copyOf(list);
     }
 
     public record Profile(String fullName, String headline, String summary, String location, String availability) {

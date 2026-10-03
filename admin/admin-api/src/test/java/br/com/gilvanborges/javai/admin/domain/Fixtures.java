@@ -39,7 +39,9 @@ public final class Fixtures {
                 List.of(),
                 List.of(),
                 List.of(new PublishedContent.Faq(
-                        new Localized("Aceita remoto?", "Open to remote?"), new Localized("Sim.", "Yes."))));
+                        new Localized("Aceita remoto?", "Open to remote?"), new Localized("Sim.", "Yes."))),
+                List.of(new PublishedContent.Repository(
+                        "FightConnect2025/apiSuporte", "destaque", new Localized("Exemplo público.", "Public example."))));
     }
 
     public static PublishedContent.Profile profile() {
@@ -55,6 +57,6 @@ public final class Fixtures {
     public static PublishedContent withoutProfile() {
         var c = content();
         return new PublishedContent(
-                null, c.experiences(), c.projects(), c.skills(), c.education(), c.certifications(), c.faq());
+                null, c.experiences(), c.projects(), c.skills(), c.education(), c.certifications(), c.faq(), c.repositories());
     }
 }

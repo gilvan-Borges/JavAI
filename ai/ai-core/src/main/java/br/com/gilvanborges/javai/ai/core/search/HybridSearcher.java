@@ -52,7 +52,7 @@ public final class HybridSearcher {
         var hits = new ArrayList<Hit>();
         for (ScoredDoc fused : ReciprocalRankFusion.fuse(rankings, ReciprocalRankFusion.DEFAULT_K, chunks.size())) {
             Chunk chunk = chunks.get(fused.doc());
-            if (lang == null || lang.equals(chunk.lang())) {
+            if (lang == null || lang.equals(chunk.lang()) || chunk.kind().isLanguageNeutral()) {
                 hits.add(new Hit(chunk, fused.score()));
                 if (hits.size() == limit) {
                     break;

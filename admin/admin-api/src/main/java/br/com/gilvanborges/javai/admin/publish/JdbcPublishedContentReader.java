@@ -70,6 +70,16 @@ class JdbcPublishedContentReader implements PublishedContentReader {
             WHERE status = 'published' AND visibility = 'public'
             ORDER BY sort_order, created_at""";
 
+    /**
+     * Só repositório ligado, que não seja fork nem privado. O banco já impede ligar fork e privado (CHECK), e este
+     * filtro repete a regra: quem lê aqui nunca depende só de uma trava.
+     */
+    static final String REPOSITORIES = """
+            SELECT full_name, kind, note_pt, note_en
+            FROM content.github_repo
+            WHERE enabled AND NOT is_fork AND NOT is_private
+            ORDER BY full_name""";
+
     private static final TypeReference<List<Link>> LINKS = new TypeReference<>() {
     };
 
@@ -127,7 +137,11 @@ class JdbcPublishedContentReader implements PublishedContentReader {
                         rs.getString("url"))).list(),
                 jdbc.sql(FAQ).query((rs, row) -> new PublishedContent.Faq(
                         localized(rs, "question"),
-                        localized(rs, "answer"))).list()));
+                        localized(rs, "answer"))).list(),
+                jdbc.sql(REPOSITORIES).query((rs, row) -> new PublishedContent.Repository(
+                        rs.getString("full_name"),
+                        rs.getString("kind"),
+                        localized(rs, "note"))).list()));
     }
 
     private PublishedContent.Profile profile(ResultSet rs, int row) throws SQLException {

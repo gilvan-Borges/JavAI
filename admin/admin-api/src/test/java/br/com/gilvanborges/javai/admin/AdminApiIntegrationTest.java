@@ -109,6 +109,28 @@ class AdminApiIntegrationTest {
     }
 
     @Test
+    void snapshot_traz_so_os_repositorios_ligados_e_nunca_os_desligados() throws Exception {
+        publishedProfile();
+        try (var app = TestDatabase.connect(database(), database().app()); var st = app.createStatement()) {
+            st.execute("""
+                    INSERT INTO content.github_repo (full_name, enabled, kind, note_pt, note_en, is_fork, is_private, updated_by) VALUES
+                      ('FightConnect2025/apiSuporte', true,  'destaque', 'Exemplo público.', 'Public example.', false, false, 'teste@example.com'),
+                      ('gilvan-Borges/estudo-qualquer', false, 'estudo', NULL, NULL, false, false, 'teste@example.com'),
+                      ('gilvan-Borges/KaioMuniz', false, 'estudo', NULL, NULL, true, false, 'teste@example.com')""");
+        }
+
+        assertThat(runPublication().get("status").asString()).isEqualTo("succeeded");
+
+        JsonNode pt = json.readTree(Files.readString(snapshots.resolve("pt.json")));
+        JsonNode en = json.readTree(Files.readString(snapshots.resolve("en.json")));
+        assertThat(pt.get("repositories")).hasSize(1);
+        assertThat(pt.at("/repositories/0/fullName").asString()).isEqualTo("FightConnect2025/apiSuporte");
+        assertThat(pt.at("/repositories/0/note").asString()).isEqualTo("Exemplo público.");
+        assertThat(en.at("/repositories/0/note").asString()).isEqualTo("Public example.");
+        assertThat(Files.readString(snapshots.resolve("pt.json"))).doesNotContain("estudo-qualquer").doesNotContain("KaioMuniz");
+    }
+
+    @Test
     void publicar_item_sem_os_dois_idiomas_e_recusado_pelo_banco() throws Exception {
         String id = create("/admin/v1/experiences", """
                 {"company":"Vibetex","rolePt":"Desenvolvedor","startedOn":"2025-01-01","descriptionPt":"pt","visibility":"public"}""");

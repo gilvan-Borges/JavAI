@@ -20,4 +20,12 @@ public enum SourceKind {
     public String db() {
         return db;
     }
+
+    /**
+     * Código e README de repositório não têm idioma "certo": uma pergunta em português precisa encontrar um código
+     * em inglês. Por isso a busca não filtra esses por idioma.
+     */
+    public boolean isLanguageNeutral() {
+        return this == REPO_README || this == REPO_FILE;
+    }
 }

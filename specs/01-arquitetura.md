@@ -116,8 +116,8 @@ O GitHub é reindexado todo dia às 03:00 (horário de São Paulo). Sem webhook,
 7. **Ativa a versão** e faz `NOTIFY ai_index`. O `ai-api` recarrega o índice em memória.
 
 **Arquivos que entram:**
-- `.java`, `.kt`, `.ts`, `.md`;
-- `pom.xml`, `build.gradle(.kts)`, `package.json`, `Dockerfile`;
+- `.java`, `.kt`, `.ts`, `.dart`, `.cs`, `.md`;
+- `pom.xml`, `build.gradle(.kts)`, `package.json`, `pubspec.yaml`, `*.csproj`, `Dockerfile`;
 - `docker-compose*.yml`, `compose*.yaml`;
 - `.github/workflows/*.yml`;
 - `db/migration/*.sql`.
@@ -213,7 +213,9 @@ Os valores de `max_price` são definidos junto com os modelos, na Fase 4. Se o J
 ### Embeddings
 
 - **Modelo candidato:** `multilingual-e5-small`, com 384 dimensões e suporte a português e inglês. Roda com o ONNX Runtime para Java e o tokenizer da DJL, com os prefixos `query: ` e `passage: `.
-- **Versão:** a quantizada em int8 é a preferida, se a avaliação não mostrar perda.
+- **Versão: int8 (decidido em 2026-10-03).** O `QuantizationQualityTest` compara a versão int8 (118 MB) com a fp32 (470 MB) nos mesmos textos: cosseno médio de 0,9967 (mínimo 0,9947) e o mesmo primeiro lugar em 8 de 8 perguntas. Não há perda que justifique 4 vezes mais memória. A VPS tem AVX512-VNNI, o conjunto de instruções para o qual esta versão foi feita.
+- **Arquivos fixados:** os dois arquivos do modelo vêm de um commit específico do repositório (`614241f6…`) e têm SHA-256 conferido no código (`ModelStore`). Se o hash não bater, o app não sobe e o arquivo baixado é descartado.
+- **Bibliotecas nativas dentro dos jars:** o ONNX Runtime e o tokenizador da DJL trazem os binários para Linux, macOS e Windows no próprio jar, então nada é baixado em tempo de execução.
 - **Verificação do arquivo:** o modelo é baixado no build da imagem e conferido por SHA-256.
 - **Memória:** a memória do ONNX Runtime é nativa e não entra no heap da JVM, por isso o limite do contêiner precisa cobrir o heap e mais o modelo.
 
@@ -267,10 +269,11 @@ Valores iniciais propostos:
 | `admin-api` | `edge`, `admin-data` | nenhuma | 640 MB | 1 |
 | `postgres-ai` | `ai-data` (interna) | nenhuma | 384 MB | 2 |
 | `ai-migrate` | `ai-data` | nenhuma | roda e sai | 2 |
-| `ai-indexer` | `edge`, `ai-data` | nenhuma | 768 MB | 2 |
+| `ai-indexer` | `ai-egress`, `ai-data` | nenhuma | 1 GB | 2 |
 | `ai-api` | `edge`, `ai-data` | nenhuma | 1 GB | 3 |
 
-- **Isolamento de rede:** os contêineres da IA não entram na rede `admin-data`, então o `postgres-admin` é inalcançável para eles.
+- **Isolamento de rede:** os contêineres da IA não entram na rede `admin-data`, então o `postgres-admin` é inalcançável para eles. O `ai-indexer` também não usa a rede `edge` do CRUD: ele sai para a internet por uma rede própria, a `ai-egress`, e por isso não enxerga o `admin-api` nem o Caddy.
+- **`/tmp` do `ai-indexer` com `exec`:** o ONNX Runtime e o tokenizador extraem as bibliotecas nativas do jar para o diretório temporário e as carregam de lá, e o Docker monta `tmpfs` sem permissão de execução por padrão.
 - **Por que não há Redis:** o `ai-api` é uma instância só. O rate limit fica em memória e o gasto diário fica no `postgres-ai`.
 - **O Docker ignora o `ufw`:** uma porta publicada fica aberta para a internet mesmo com o firewall bloqueando. Por isso só o Caddy publica porta, e só a 443. Com o modo Full (strict) da Cloudflare, a porta 80 não é necessária.
 

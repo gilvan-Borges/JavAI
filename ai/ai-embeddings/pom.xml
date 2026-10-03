@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>br.com.gilvanborges.javai</groupId>
+        <artifactId>javai-ai</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>ai-embeddings</artifactId>
+    <name>JavAI · IA · embeddings</name>
+    <description>Embeddings dentro da JVM: ONNX Runtime e o tokenizador da DJL. Nenhum texto sai do servidor.</description>
+
+    <properties>
+        <onnxruntime.version>1.30.0</onnxruntime.version>
+        <djl.version>0.38.0</djl.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>br.com.gilvanborges.javai</groupId>
+            <artifactId>ai-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <!-- O jar traz as bibliotecas nativas (Linux, macOS e Windows): nada é baixado em tempo de execução. -->
+            <groupId>com.microsoft.onnxruntime</groupId>
+            <artifactId>onnxruntime</artifactId>
+            <version>${onnxruntime.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ai.djl.huggingface</groupId>
+            <artifactId>tokenizers</artifactId>
+            <version>${djl.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

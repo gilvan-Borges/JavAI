@@ -17,7 +17,8 @@ public record ContentSnapshot(
         List<Skill> skills,
         List<Education> education,
         List<Certification> certifications,
-        List<Faq> faq) {
+        List<Faq> faq,
+        List<Repository> repositories) {
 
     public record Profile(
             String fullName, String headline, String summary, String location, List<Link> links, String availability) {
@@ -57,5 +58,8 @@ public record ContentSnapshot(
     }
 
     public record Faq(String question, String answer) {
+    }
+
+    public record Repository(String fullName, String kind, String note) {
     }
 }

@@ -21,9 +21,19 @@ class PublishedContentQueriesTest {
     }
 
     @Test
-    void toda_consulta_filtra_publicado_e_publico() {
-        assertThat(queries()).allSatisfy(sql ->
+    void toda_consulta_de_conteudo_filtra_publicado_e_publico() {
+        assertThat(contentQueries()).allSatisfy(sql ->
                 assertThat(sql).contains("WHERE status = 'published' AND visibility = 'public'"));
+    }
+
+    @Test
+    void a_consulta_de_repositorios_so_pega_ligado_e_nunca_fork_nem_privado() {
+        assertThat(JdbcPublishedContentReader.REPOSITORIES)
+                .contains("WHERE enabled AND NOT is_fork AND NOT is_private");
+    }
+
+    private static List<String> contentQueries() {
+        return queries().stream().filter(sql -> !sql.equals(JdbcPublishedContentReader.REPOSITORIES)).toList();
     }
 
     private static List<String> queries() {

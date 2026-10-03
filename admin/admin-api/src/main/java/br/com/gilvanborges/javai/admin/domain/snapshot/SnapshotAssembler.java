@@ -61,6 +61,9 @@ public final class SnapshotAssembler {
                         .toList(),
                 content.faq().stream()
                         .map(f -> new ContentSnapshot.Faq(f.question().in(lang), f.answer().in(lang)))
+                        .toList(),
+                content.repositories().stream()
+                        .map(r -> new ContentSnapshot.Repository(r.fullName(), r.kind(), r.note().in(lang)))
                         .toList());
     }
 }

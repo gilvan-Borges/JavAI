@@ -17,6 +17,8 @@
     <modules>
         <module>ai-core</module>
         <module>ai-migrations</module>
+        <module>ai-embeddings</module>
+        <module>ai-indexer</module>
     </modules>
 
     <build>

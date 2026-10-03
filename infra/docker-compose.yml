@@ -1,5 +1,5 @@
-# JavAI na VPS (spec 01, "Infraestrutura"). Fase 1: só o lado CRUD.
-# Os serviços da IA (postgres-ai, ai-migrate, ai-indexer, ai-api) entram na Fase 2, em outra rede de dados.
+# JavAI na VPS (spec 01, "Infraestrutura"). Dois lados isolados: o CRUD (admin-*) e a IA (ai-*).
+# Cada lado tem o próprio banco e a própria rede de dados; o ai-api entra na Fase 3.
 #
 # Regra que não pode ser quebrada: só o Caddy publica porta. O Docker ignora o ufw, então qualquer outra
 # porta publicada ficaria aberta para a internet.
@@ -120,12 +120,100 @@ services:
       admin-migrate:
         condition: service_completed_successfully
 
+  # ---------------------------------------------------------------------------------------------------------
+  # Lado da IA. Não compartilha rede de dados nem banco com o CRUD (spec 01, "A regra de isolamento").
+  # ---------------------------------------------------------------------------------------------------------
+
+  postgres-ai:
+    <<: *endurecido
+    image: postgres:18-alpine
+    user: "70:70"
+    command:
+      - postgres
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - listen_addresses=*
+      - -c
+      - shared_buffers=96MB
+      - -c
+      - log_connections=on
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_AI_PASSWORD:?defina no .env}
+    volumes:
+      - postgres-ai-data:/var/lib/postgresql
+      - ./postgres-ai/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    tmpfs:
+      - /var/run/postgresql
+      - /tmp
+    networks: [ai-data]
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ai-migrate:
+    <<: *endurecido
+    image: ghcr.io/gilvan-borges/javai-ai-migrations:${JAVAI_TAG:?defina no .env}
+    restart: "no"
+    environment:
+      AI_DB_HOST: postgres-ai
+      POSTGRES_PASSWORD: ${POSTGRES_AI_PASSWORD:?defina no .env}
+      AI_OWNER_PASSWORD: ${AI_OWNER_PASSWORD:?defina no .env}
+      AI_INDEXER_PASSWORD: ${AI_INDEXER_PASSWORD:?defina no .env}
+      AI_READER_PASSWORD: ${AI_READER_PASSWORD:?defina no .env}
+    tmpfs:
+      - /tmp
+    networks: [ai-data]
+    mem_limit: 256m
+    depends_on:
+      postgres-ai:
+        condition: service_healthy
+
+  ai-indexer:
+    <<: *endurecido
+    image: ghcr.io/gilvan-borges/javai-ai-indexer:${JAVAI_TAG:?defina no .env}
+    environment:
+      AI_DB_URL: jdbc:postgresql://postgres-ai:5432/ai?logServerErrorDetail=false&ApplicationName=ai-indexer
+      AI_INDEXER_PASSWORD: ${AI_INDEXER_PASSWORD:?defina no .env}
+      INDEXER_SNAPSHOT_BASE_URL: ${INDEXER_SNAPSHOT_BASE_URL:-https://conteudo.gilvanborges.com.br}
+      INDEXER_MODEL_DIR: /models
+    volumes:
+      - ai-models:/models
+    tmpfs:
+      # exec: o ONNX Runtime e o tokenizador extraem as bibliotecas nativas para cá e as carregam daqui.
+      # O tamanho cobre o clone raso de um repositório de até 50 MB.
+      - /tmp:exec,mode=1777,size=512m
+    # ai-egress só para sair à internet (snapshot, GitHub, Hugging Face); sem rede com o CRUD nem com o Caddy.
+    networks: [ai-egress, ai-data]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    depends_on:
+      ai-migrate:
+        condition: service_completed_successfully
+
 networks:
   edge: {}
   # Sem saída para a internet e sem nenhum contêiner da IA: o banco do CRUD só existe para o admin-api.
   admin-data:
     internal: true
+  # Saída à internet do lado da IA, separada da rede edge do CRUD.
+  ai-egress: {}
+  # Sem saída para a internet e sem nenhum contêiner do CRUD: o banco da IA só existe para os serviços da IA.
+  ai-data:
+    internal: true
 
 volumes:
   postgres-admin-data: {}
   conteudo: {}
+  postgres-ai-data: {}
+  ai-models: {}

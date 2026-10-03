@@ -60,13 +60,14 @@ GET https://conteudo.gilvanborges.com.br/v1/snapshot/en.json
   "skills": [{ "name": "RabbitMQ", "category": "mensageria", "declared": true, "notes": null }],
   "education": [],
   "certifications": [],
-  "faq": [{ "question": "...", "answer": "..." }]
+  "faq": [{ "question": "...", "answer": "..." }],
+  "repositories": [{ "fullName": "FightConnect2025/apiSuporte", "kind": "destaque", "note": "..." }]
 }
 ```
 
 - **`version`:** a versão da publicação no CRUD.
 - **Evidências de habilidades não estão aqui:** quem calcula é a IA, e elas aparecem nas respostas e nas ferramentas dela. O snapshot tem só o que foi cadastrado.
-- **Fase 2:** entra o campo `repositories`, com `fullName`, `kind` e `note` dos repositórios ligados no CRUD. É dele que o `ai-indexer` tira a lista do que pode ler.
+- **`repositories` (Fase 2):** os repositórios que o dono ligou no CRUD, com `fullName`, `kind` e `note`. É daqui que o `ai-indexer` tira a lista do que pode ler. Só entra repositório ligado que não seja fork nem privado; o `ai-indexer` ainda confere isso de novo na API do GitHub antes de clonar.
 
 ## API da IA (`api.gilvanborges.com.br`)
 

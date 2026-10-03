@@ -16,7 +16,8 @@ public record PublishedContent(
         List<Skill> skills,
         List<Education> education,
         List<Certification> certifications,
-        List<Faq> faq) {
+        List<Faq> faq,
+        List<Repository> repositories) {
 
     public PublishedContent {
         experiences = List.copyOf(experiences);
@@ -25,6 +26,7 @@ public record PublishedContent(
         education = List.copyOf(education);
         certifications = List.copyOf(certifications);
         faq = List.copyOf(faq);
+        repositories = List.copyOf(repositories);
     }
 
     public record Profile(
@@ -82,5 +84,9 @@ public record PublishedContent(
     }
 
     public record Faq(Localized question, Localized answer) {
+    }
+
+    /** Um repositório do GitHub que o dono ligou para ser lido por quem consome o snapshot (a IA, a partir da Fase 2). */
+    public record Repository(String fullName, String kind, Localized note) {
     }
 }
