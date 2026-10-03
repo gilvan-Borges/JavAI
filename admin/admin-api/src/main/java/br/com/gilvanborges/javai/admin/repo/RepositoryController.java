@@ -56,10 +56,10 @@ class RepositoryController {
                     + "fork é recusado. Depois de ligar, publique: o indexador lê o snapshot novo em até 5 minutos.")
     public RepositoryStore.Row upsert(@Valid @RequestBody RepositoryInput input, Authentication authentication) {
         String actor = Actor.of(authentication);
-        GitHubLookup.Meta meta = github.fetch(input.fullName()).orElseThrow(() -> problem(HttpStatus.UNPROCESSABLE_ENTITY,
+        GitHubLookup.Meta meta = github.fetch(input.fullName()).orElseThrow(() -> problem(HttpStatus.UNPROCESSABLE_CONTENT,
                 "Não encontrei esse repositório público no GitHub. Ele é privado, não existe ou o nome está errado."));
         if (input.enabled() && meta.fork()) {
-            throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "Fork não pode ser ligado: o snapshot só leva repositório próprio.");
+            throw problem(HttpStatus.UNPROCESSABLE_CONTENT, "Fork não pode ser ligado: o snapshot só leva repositório próprio.");
         }
         return tx.execute(status -> {
             RepositoryStore.Row before = store.find(meta.fullName()).orElse(null);

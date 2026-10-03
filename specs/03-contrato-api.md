@@ -251,6 +251,7 @@ O CORS do admin é fechado, e o cookie do Access usa `SameSite=Strict`.
 | `GET /admin/v1/repositories` | Repositórios, ligados ou não, com os metadados lidos do GitHub |
 | `PUT /admin/v1/repositories` | Liga ou atualiza um repositório (`fullName`, `kind`, `notePt/En`, `enabled`). O servidor busca fork, branch e tamanho na API do GitHub na hora; privado, inexistente ou fork ligado → 422. Depois, publicar: o indexador lê o snapshot novo em até 5 min |
 | `DELETE /admin/v1/repositories/{owner}/{name}` | Remove da lista (sai do snapshot na próxima publicação) |
+| `GET /admin/repos` | **Tela** (HTML + `/admin/repos.js`, mesmo domínio, sem script inline): formulário para ligar/editar/remover repositórios e botão Publicar, em cima da API acima. Só abre com o JWT do Access |
 
 Toda escrita vira uma linha em `ops.audit_log`, com o e-mail do JWT e o diff.
 
