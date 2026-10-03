@@ -49,6 +49,17 @@ class InternalController {
         return ResponseEntity.accepted().body(Map.of("estado", "iniciada"));
     }
 
+    @PostMapping("/internal/wipe")
+    ResponseEntity<Map<String, Object>> wipe(@RequestHeader(value = "X-Indexer-Token", defaultValue = "") String given) {
+        var denied = check(given);
+        if (denied != null) {
+            return denied;
+        }
+        var outcome = service.wipe();
+        return outcome.status().equals("succeeded") ? ResponseEntity.ok(Map.of("estado", "apagada"))
+                : ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("estado", "nao-apagada"));
+    }
+
     @GetMapping("/internal/status")
     ResponseEntity<Map<String, Object>> status(@RequestHeader(value = "X-Indexer-Token", defaultValue = "") String given) {
         var denied = check(given);

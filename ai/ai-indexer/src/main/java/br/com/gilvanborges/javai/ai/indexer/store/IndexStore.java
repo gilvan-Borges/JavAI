@@ -134,6 +134,17 @@ public class IndexStore {
         return jdbc.sql("DELETE FROM index.version WHERE status = 'retired'").update();
     }
 
+    /** Apaga TODAS as versões do índice, inclusive a ativa, e os trechos e evidências delas. A IA fica sem conhecimento. */
+    public int wipeAll() {
+        return jdbc.sql("DELETE FROM index.version").update();
+    }
+
+    /** A última execução que fez algo foi "apagar tudo"? Então o indexador automático espera o botão "buscar dados". */
+    public boolean wiped() {
+        return jdbc.sql("SELECT report->>'acao' FROM ops.index_job WHERE status <> 'skipped' ORDER BY started_at DESC LIMIT 1")
+                .query(String.class).optional().filter("apagar"::equals).isPresent();
+    }
+
     public UUID startJob(String trigger) {
         return jdbc.sql(START_JOB).param("trigger", trigger).query(UUID.class).single();
     }

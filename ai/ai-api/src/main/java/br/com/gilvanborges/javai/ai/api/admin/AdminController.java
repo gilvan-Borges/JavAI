@@ -36,7 +36,9 @@ public class AdminController {
     /** Mensagens fixas: o texto vem daqui, nunca do parâmetro da URL. */
     private static final java.util.Map<String, String> NOTICES = java.util.Map.of(
             "iniciada", "Reindexação iniciada. Atualize em alguns segundos para ver o resultado.",
-            "andamento", "Já existe uma indexação em andamento.",
+            "apagada", "Base de conhecimento apagada. A IA está sem dados até você usar \"Buscar dados\".",
+            "confirme", "Marque a caixa de confirmação para apagar.",
+            "andamento", "Já existe uma indexação em andamento (ou o apagamento não pôde rodar agora).",
             "indisponivel", "Não consegui falar com o indexador.");
 
     private static final MediaType HTML = new MediaType("text", "html", java.nio.charset.StandardCharsets.UTF_8);
@@ -131,6 +133,20 @@ public class AdminController {
     @GetMapping("/admin/fontes")
     public ResponseEntity<String> sources(@RequestParam(name = "aviso", defaultValue = "") String notice) {
         return html(AdminPages.sources(indexer.status().orElse(null), NOTICES.getOrDefault(notice, ""), indexer.configured()));
+    }
+
+    /** Apaga toda a base de conhecimento. Exige a caixa de confirmação marcada, além da sessão e do mesmo site. */
+    @PostMapping("/admin/apagar")
+    public ResponseEntity<String> wipe(HttpServletRequest request, @RequestParam(name = "confirmo", defaultValue = "") String confirm) {
+        if (!"same-origin".equals(request.getHeader("Sec-Fetch-Site"))) {
+            return ResponseEntity.status(403).contentType(HTML).body(AdminPages.loginPage("Pedido de outro site recusado."));
+        }
+        String key = !confirm.equals("sim") ? "confirme" : switch (indexer.wipe()) {
+            case STARTED -> "apagada";
+            case ALREADY_RUNNING -> "andamento";
+            case UNAVAILABLE -> "indisponivel";
+        };
+        return ResponseEntity.status(303).header("Location", "/admin/fontes?aviso=" + key).build();
     }
 
     /** Só o painel, do mesmo site e com a sessão, pode pedir. O pedido não leva parâmetro: relê o que já está configurado. */

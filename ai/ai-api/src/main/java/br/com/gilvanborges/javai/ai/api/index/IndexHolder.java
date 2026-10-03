@@ -42,6 +42,10 @@ public class IndexHolder {
         try {
             Optional<Long> active = repository.activeVersionId();
             if (active.isEmpty()) {
+                if (current != null) {
+                    LOG.info("A base de conhecimento foi apagada: a IA fica sem índice até a próxima indexação.");
+                    current = null;
+                }
                 return;
             }
             ActiveIndex loaded = current;

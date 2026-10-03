@@ -173,10 +173,7 @@ guarda nenhum valor do dono.
 - **Mudança:** cada fonte guarda o SHA-256 do texto lido na versão (`src:<fonte>`); a cada `check-interval` (30 min) o indexador
   relê e reindexa só se algum hash mudou ou se uma fonte nova foi configurada.
 - **Limites de leitura:** só https, 5 MB por fonte, 40 páginas de PDF, 40 s; as URLs vêm da configuração, nunca de visitante.
-- **Reset pelo painel:** `/admin/fontes` mostra a configuração, as últimas execuções e o resultado de cada fonte, e tem o botão
-  "Resetar e buscar tudo de novo". O botão chama a porta interna do indexador (`POST /internal/reindex`, token compartilhado
-  `INDEXER_TRIGGER_TOKEN`, rede interna do Docker, sem parâmetros) que roda uma execução `manual` completa. Exige a sessão do
-  admin e `Sec-Fetch-Site: same-origin`. Se a indexação falhar, a versão ativa continua.
+- **Dois botões separados no painel** (`/admin/fontes`): **Apagar base de conhecimento** (exige caixa de confirmação; apaga TODAS as versões do índice, e o indexador automático só volta a reconstruir depois de um "Buscar dados") e **Buscar dados** (lê tudo do zero, ativa um índice novo e apaga as versões antigas). Chamam a porta interna do indexador (`POST /internal/wipe` e `POST /internal/reindex`, token compartilhado `INDEXER_TRIGGER_TOKEN`, rede interna do Docker, sem parâmetros). Exigem a sessão do admin e `Sec-Fetch-Site: same-origin`. Sem índice, o chat responde 503 de manutenção e o MCP avisa que o índice não está disponível. O CRUD não é tocado.
 
 ### Fluxo de uma pergunta no chat (`ai-api`)
 

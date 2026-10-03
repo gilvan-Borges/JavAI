@@ -80,10 +80,38 @@ public class IndexerService {
         return running.get();
     }
 
+    /**
+     * Apaga toda a base de conhecimento (todas as versões do índice). Enquanto ninguém usar o botão "Buscar dados", o
+     * indexador automático não reconstrói nada. O CRUD e as fontes não são tocados.
+     */
+    public Outcome wipe() {
+        if (!running.compareAndSet(false, true)) {
+            return new Outcome("skipped", null, Map.of("motivo", "já existe uma indexação em andamento"));
+        }
+        UUID job = store.startJob(Trigger.MANUAL.db);
+        try {
+            int deleted = store.wipeAll();
+            var report = Map.<String, Object>of("acao", "apagar", "versoesApagadas", deleted);
+            store.finishJob(job, "succeeded", null, report);
+            LOG.warn("Base de conhecimento apagada ({} versões).", deleted);
+            return new Outcome("succeeded", null, report);
+        } catch (RuntimeException e) {
+            var report = Map.<String, Object>of("motivo", describe(e));
+            store.finishJob(job, "failed", null, report);
+            return new Outcome("failed", null, report);
+        } finally {
+            running.set(false);
+        }
+    }
+
     /** Nunca lança exceção: o resultado diz se deu certo, foi pulado ou falhou. */
     public Outcome run(Trigger trigger) {
         if (!running.compareAndSet(false, true)) {
             return new Outcome("skipped", null, Map.of("motivo", "já existe uma indexação em andamento"));
+        }
+        if (trigger != Trigger.MANUAL && store.wiped()) {
+            running.set(false);
+            return new Outcome("skipped", null, Map.of("motivo", "a base foi apagada; aguardando o botão \"Buscar dados\""));
         }
         UUID job = store.startJob(trigger.db);
         Long versionId = null;

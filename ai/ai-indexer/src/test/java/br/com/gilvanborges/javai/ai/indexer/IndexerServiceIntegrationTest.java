@@ -135,6 +135,22 @@ class IndexerServiceIntegrationTest {
     }
 
     @Test
+    void apagar_deixa_a_ia_sem_indice_e_so_o_botao_buscar_dados_reconstroi() throws Exception {
+        service.run(IndexerService.Trigger.AGENDADO);
+
+        assertThat(service.wipe().status()).isEqualTo("succeeded");
+
+        assertThat(store.activeSnapshotEtag()).isEmpty();
+        assertThat(service.run(IndexerService.Trigger.SNAPSHOT).status()).isEqualTo("skipped");
+        assertThat(service.run(IndexerService.Trigger.AGENDADO).status()).isEqualTo("skipped");
+        assertThat(store.activeSnapshotEtag()).isEmpty();
+
+        assertThat(service.run(IndexerService.Trigger.MANUAL).status()).isEqualTo("succeeded");
+        assertThat(store.activeSnapshotEtag()).isPresent();
+        assertThat(service.run(IndexerService.Trigger.AGENDADO).status()).isEqualTo("succeeded");
+    }
+
+    @Test
     void repositorio_que_recebe_commit_a_toda_hora_respeita_o_intervalo_minimo() throws Exception {
         var slow = new IndexerProperties("http://127.0.0.1:1", Duration.ofMinutes(5), 51_200, 300, "/nada", 1,
                 "https://api.github.com", "https://github.com/", Duration.ofHours(1));

@@ -40,14 +40,23 @@ public class IndexerClient {
     }
 
     public Result reindex() {
+        return post("/internal/reindex");
+    }
+
+    /** Apaga toda a base de conhecimento; {@code STARTED} quer dizer que apagou. */
+    public Result wipe() {
+        return post("/internal/wipe");
+    }
+
+    private Result post(String path) {
         if (!configured()) {
             return Result.UNAVAILABLE;
         }
         try {
-            var response = http.send(request("/internal/reindex").POST(HttpRequest.BodyPublishers.noBody()).build(),
+            var response = http.send(request(path).POST(HttpRequest.BodyPublishers.noBody()).build(),
                     HttpResponse.BodyHandlers.discarding());
             return switch (response.statusCode()) {
-                case 202 -> Result.STARTED;
+                case 200, 202 -> Result.STARTED;
                 case 409 -> Result.ALREADY_RUNNING;
                 default -> Result.UNAVAILABLE;
             };

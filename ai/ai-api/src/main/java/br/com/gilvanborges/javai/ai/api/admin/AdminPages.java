@@ -428,16 +428,22 @@ final class AdminPages {
         b.append("</table><p class=\"dim\">O LinkedIn não permite leitura automática: ele entra só como link. Para a IA conhecer o conteúdo, publique o texto no site ")
                 .append("(<code>llms-full.txt</code>) ou um PDF do currículo e configure em <code>documents</code>.</p>");
 
-        b.append("<h2>Reindexar tudo</h2>");
         boolean running = status.path("rodando").asBoolean();
         if (running) {
             b.append("<p class=\"warn\">Há uma indexação em andamento. Atualize a página em alguns segundos.</p>");
         }
         if (canTrigger) {
-            b.append("<form method=\"post\" action=\"/admin/reindex\"><button")
-                    .append(running ? " disabled" : "").append(">Resetar e buscar tudo de novo</button></form>")
-                    .append("<p class=\"dim\">Relê o snapshot do CRUD, o site, os documentos, o GitHub e os repositórios, monta um índice novo e o ativa. ")
-                    .append("Se algo der errado, o índice atual continua valendo.</p>");
+            b.append("<h2>1. Apagar a base de conhecimento</h2>")
+                    .append("<form method=\"post\" action=\"/admin/apagar\"><label><input type=\"checkbox\" name=\"confirmo\" value=\"sim\" required> ")
+                    .append("Entendo que a IA fica sem nenhum dado e não responde sobre você até o passo 2.</label> <button class=\"danger\"")
+                    .append(running ? " disabled" : "").append(">Apagar base de conhecimento</button></form>")
+                    .append("<p class=\"dim\">Apaga TODAS as versões do índice (trechos, evidências e vetores). Enquanto não houver novo \"Buscar dados\", ")
+                    .append("o indexador automático não reconstrói nada. O CRUD, o site e o GitHub não são tocados.</p>")
+                    .append("<h2>2. Buscar dados</h2>")
+                    .append("<form method=\"post\" action=\"/admin/reindex\"><button").append(running ? " disabled" : "")
+                    .append(">Buscar dados</button></form>")
+                    .append("<p class=\"dim\">Lê do zero o snapshot do CRUD, o site, os documentos, o GitHub e os repositórios, monta um índice novo e o ativa, ")
+                    .append("apagando as versões antigas. Se a leitura falhar, o índice atual (se houver) continua valendo.</p>");
         }
 
         JsonNode jobs = status.path("jobs");
@@ -519,6 +525,7 @@ final class AdminPages {
             .filters{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0 1rem}input,select,button{background:#0f1828;color:#f2ede4;border:1px solid #22304a;border-radius:6px;padding:.4rem .6rem;font:inherit}
             button{cursor:pointer;background:#d98a3d;color:#0a111e;border:0;font-weight:600}header button{background:#142239;color:#a9b4c6;font-weight:400;border:1px solid #22304a}
             body.login{display:grid;place-items:center;min-height:100vh}.login form{background:#0f1828;border:1px solid #22304a;border-radius:12px;padding:1.5rem;width:min(22rem,92vw);display:grid;gap:.9rem}
+            button.danger{background:#e5826b}label{color:#a9b4c6}
             .login h1{margin:0}.login label{display:grid;gap:.25rem;font-size:.85rem;color:#a9b4c6}.login input{width:100%}ul{padding-left:1.2rem}.pager{margin-top:1rem}
             """;
 }
