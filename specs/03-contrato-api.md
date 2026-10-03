@@ -248,7 +248,9 @@ O CORS do admin é fechado, e o cookie do Access usa `SameSite=Strict`.
 | `GET /admin/v1/versions` | Versões publicadas |
 | `POST /admin/v1/versions/{id}/activate` | Rollback para uma versão guardada |
 | `GET /admin/v1/audit?from=&to=` | Auditoria (padrão: últimos 7 dias, até 500 linhas) |
-| `GET /admin/v1/repos`, `POST /admin/v1/repos/sync`, `PUT /admin/v1/repos/{owner}/{name}` | Repositórios ligados (Fase 2) |
+| `GET /admin/v1/repositories` | Repositórios, ligados ou não, com os metadados lidos do GitHub |
+| `PUT /admin/v1/repositories` | Liga ou atualiza um repositório (`fullName`, `kind`, `notePt/En`, `enabled`). O servidor busca fork, branch e tamanho na API do GitHub na hora; privado, inexistente ou fork ligado → 422. Depois, publicar: o indexador lê o snapshot novo em até 5 min |
+| `DELETE /admin/v1/repositories/{owner}/{name}` | Remove da lista (sai do snapshot na próxima publicação) |
 
 Toda escrita vira uma linha em `ops.audit_log`, com o e-mail do JWT e o diff.
 
