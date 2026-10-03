@@ -39,6 +39,7 @@
 
     <modules>
         <module>admin</module>
+        <module>ai</module>
     </modules>
 
     <dependencyManagement>
