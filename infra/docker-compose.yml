@@ -22,8 +22,11 @@ services:
   caddy:
     <<: *endurecido
     image: caddy:2.11.6-alpine
-    # Escuta na 8443 dentro do contêiner, sem root e sem nenhuma capability; o Docker leva a 443 até ela.
+    # Escuta na 8443 dentro do contêiner, sem root; o Docker leva a 443 até ela. A imagem oficial traz o binário
+    # com cap_net_bind_service como permissão de arquivo, e com cap_drop ALL o exec falha ("operation not
+    # permitted"). Devolver só essa capability resolve, sem abrir mais nada.
     user: "1000:1000"
+    cap_add: [NET_BIND_SERVICE]
     ports:
       - "443:8443"
     volumes:
