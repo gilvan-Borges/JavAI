@@ -85,6 +85,8 @@ else
   logger -t javai-deploy "falhou: $tag; voltando para ${previous:-nada}"
   echo "Deploy de $tag falhou; voltando para ${previous:-nada}." >&2
   docker compose ps -a --format 'table {{.Service}}\t{{.Status}}' >&2 || true
+  # A causa precisa aparecer no log do CI: os contêineres são recriados no rollback e os logs somem.
+  docker compose logs --no-log-prefix --tail 30 admin-migrate admin-api caddy >&2 || true
   restore_infra
   if [[ -n "$previous" ]]; then
     set_tag "$previous"
