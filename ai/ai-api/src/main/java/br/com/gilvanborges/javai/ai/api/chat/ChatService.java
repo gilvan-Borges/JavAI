@@ -6,6 +6,7 @@ import br.com.gilvanborges.javai.ai.api.index.QueryEmbedder;
 import br.com.gilvanborges.javai.ai.api.usage.UsageRecorder;
 import br.com.gilvanborges.javai.ai.api.web.RateLimiter;
 import br.com.gilvanborges.javai.ai.core.chunk.Chunk;
+import br.com.gilvanborges.javai.ai.core.chunk.SourceKind;
 import br.com.gilvanborges.javai.ai.core.search.HybridSearcher;
 import br.com.gilvanborges.javai.ai.core.text.LanguageGuess;
 import org.slf4j.Logger;
@@ -146,7 +147,7 @@ public class ChatService {
         searchTrace.put("ms", found.ms());
         sink.send("trace", searchTrace);
 
-        List<Chunk> sources = found.value().hits().stream().map(HybridSearcher.Hit::chunk).toList();
+        List<Chunk> sources = withAnchors(found.value().hits().stream().map(HybridSearcher.Hit::chunk).toList(), active, lang, decision);
         String canary = keys.canary(PromptBuilder.VERSION);
         PromptBuilder.Prompt prompt = PromptBuilder.build(request.question(), lang, sources, history, canary);
         List<String> models = decision.tier() == Router.Tier.FORTE ? props.modelsStrong() : props.modelsFast();
@@ -215,6 +216,26 @@ public class ChatService {
         usageOut.put("model", used.model());
         usage.answer(used.model(), used.tokensIn(), used.tokensOut(), used.costUsd(), latency, false);
         sink.send("done", Map.of("turn", turn, "usage", usageOut));
+    }
+
+    /**
+     * Pergunta de perfil ("onde ele mora?", "onde trabalhou antes?") raramente tem palavra em comum com o trecho certo,
+     * e a busca por significado nem sempre o põe entre os 5 primeiros. O perfil e as experiências são poucos e são
+     * exatamente o que esse tipo de pergunta precisa, então entram sempre, na frente. Os trechos da busca vêm depois.
+     */
+    static List<Chunk> withAnchors(List<Chunk> hits, ActiveIndex active, String lang, Router.Decision decision) {
+        if (decision.category() != null && decision.category() != Category.PERFIL) {
+            return hits;
+        }
+        var all = new ArrayList<Chunk>();
+        all.addAll(active.withRef("profile", lang));
+        all.addAll(active.ofKind(SourceKind.EXPERIENCE, lang));
+        for (Chunk hit : hits) {
+            if (all.stream().noneMatch(c -> c.id().equals(hit.id()))) {
+                all.add(hit);
+            }
+        }
+        return List.copyOf(all);
     }
 
     /** As fontes que o texto cita com {@code [n]}, com o link escrito pelo servidor (o modelo nunca escreve URL). */

@@ -179,6 +179,25 @@ class ChatAttackBatteryTest {
     }
 
     @Test
+    void pergunta_de_perfil_sempre_leva_o_perfil_e_as_experiencias_no_contexto() {
+        jev = Optional.of(new Classification(Category.PERFIL, 0.9));
+
+        service.answer(question("Em que cidade ele mora?"), new Sink());
+
+        // A busca por palavras não acha nada nesta pergunta, mas o perfil e a experiência entram de qualquer jeito.
+        assertThat(model.lastPrompt.user()).contains("Resumo em português.").contains("Vibetex");
+    }
+
+    @Test
+    void pergunta_de_codigo_nao_ganha_o_perfil_de_graca() {
+        jev = Optional.of(new Classification(Category.CODIGO, 0.9));
+
+        service.answer(question("Ele já usou RabbitMQ?"), new Sink());
+
+        assertThat(model.lastPrompt.user()).doesNotContain("Resumo em português.");
+    }
+
+    @Test
     void perfil_usa_o_modelo_rapido() {
         jev = Optional.of(new Classification(Category.PERFIL, 0.8));
 
