@@ -79,4 +79,32 @@ https://conteudo.gilvanborges.com.br {
 	}
 }
 
-# api.gilvanborges.com.br entra na Fase 3, junto com o ai-api.
+# API pública da IA. Na Fase 3 só existe o MCP (POST /mcp); o resto responde 404. O ai-api fica numa rede interna
+# só com o Caddy, então nada chega a ele sem passar por aqui. O IP real (da Cloudflare) vai no X-Real-IP, que o
+# ai-api usa no rate limit; header_up substitui qualquer valor que o cliente tenha mandado.
+https://api.gilvanborges.com.br {
+	import cloudflare_tls
+	import cabecalhos
+	header {
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		Cache-Control "no-store"
+	}
+	request_body {
+		max_size 64KB
+	}
+
+	@mcp path /mcp
+	handle @mcp {
+		# Só a porta 8080. O actuator, na 8081, nunca é roteado.
+		reverse_proxy ai-api:8080 {
+			header_up X-Real-IP {http.request.client_ip}
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 20s
+			}
+		}
+	}
+	handle {
+		respond 404
+	}
+}

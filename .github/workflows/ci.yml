@@ -55,9 +55,10 @@ jobs:
           docker build -t "$REGISTRY/javai-admin-migrations:$TAG" admin/admin-migrations
           docker build -t "$REGISTRY/javai-ai-migrations:$TAG" ai/ai-migrations
           docker build -t "$REGISTRY/javai-ai-indexer:$TAG" ai/ai-indexer
+          docker build -t "$REGISTRY/javai-ai-api:$TAG" ai/ai-api
       - name: Trivy (falha com vulnerabilidade alta ou crítica que já tem correção)
         run: |
-          for image in javai-admin-api javai-admin-migrations javai-ai-migrations javai-ai-indexer; do
+          for image in javai-admin-api javai-admin-migrations javai-ai-migrations javai-ai-indexer javai-ai-api; do
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image \
               --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress "$REGISTRY/$image:$TAG"
           done
@@ -67,7 +68,7 @@ jobs:
           GHCR_USER: ${{ github.actor }}
         run: |
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-          for image in javai-admin-api javai-admin-migrations javai-ai-migrations javai-ai-indexer; do
+          for image in javai-admin-api javai-admin-migrations javai-ai-migrations javai-ai-indexer javai-ai-api; do
             docker push "$REGISTRY/$image:$TAG"
           done
 

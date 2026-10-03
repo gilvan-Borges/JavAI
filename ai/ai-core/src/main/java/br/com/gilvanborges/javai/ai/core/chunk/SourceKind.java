@@ -17,6 +17,15 @@ public enum SourceKind {
         this.db = db;
     }
 
+    public static SourceKind fromDb(String value) {
+        for (SourceKind kind : values()) {
+            if (kind.db.equals(value)) {
+                return kind;
+            }
+        }
+        throw new IllegalArgumentException("Tipo de trecho desconhecido: " + value);
+    }
+
     public String db() {
         return db;
     }

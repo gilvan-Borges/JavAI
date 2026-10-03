@@ -62,6 +62,24 @@ public final class ModelStore {
         return directory;
     }
 
+    /**
+     * Só confere o que já está no disco, sem baixar nada: é o que o ai-api faz, porque quem baixa o modelo é o
+     * ai-indexer. Vazio se faltar algum arquivo ou se algum hash não bater.
+     */
+    public java.util.Optional<Path> findVerified(List<ModelFile> files) {
+        try {
+            for (ModelFile file : files) {
+                Path target = directory.resolve(file.name());
+                if (!Files.isRegularFile(target) || !sha256(target).equals(file.sha256())) {
+                    return java.util.Optional.empty();
+                }
+            }
+            return java.util.Optional.of(directory);
+        } catch (IOException e) {
+            return java.util.Optional.empty();
+        }
+    }
+
     private void download(ModelFile file, Path target) throws IOException, InterruptedException {
         Path temp = Files.createTempFile(directory, file.name() + ".", ".part");
         try {

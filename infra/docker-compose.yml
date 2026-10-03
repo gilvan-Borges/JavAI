@@ -37,7 +37,7 @@ services:
       - /data:uid=1000,gid=1000
       - /config:uid=1000,gid=1000
       - /tmp
-    networks: [edge]
+    networks: [edge, ai-edge]
     mem_limit: 128m
     # Sem depends_on: se o admin-api cair, o snapshot em conteudo. continua no ar.
 
@@ -201,6 +201,33 @@ services:
       ai-migrate:
         condition: service_completed_successfully
 
+  ai-api:
+    <<: *endurecido
+    image: ghcr.io/gilvan-borges/javai-ai-api:${JAVAI_TAG:?defina no .env}
+    environment:
+      AI_DB_URL: jdbc:postgresql://postgres-ai:5432/ai?logServerErrorDetail=false&ApplicationName=ai-api
+      AI_READER_PASSWORD: ${AI_READER_PASSWORD:?defina no .env}
+      AIAPI_MODEL_DIR: /models
+    volumes:
+      # O modelo é baixado e verificado pelo ai-indexer; aqui só é lido.
+      - ai-models:/models:ro
+    tmpfs:
+      # exec: o ONNX Runtime e o tokenizador extraem as bibliotecas nativas para cá e as carregam daqui.
+      - /tmp:exec,mode=1777,size=128m
+    # ai-edge: só fala com o Caddy. ai-data: só fala com o banco da IA. As duas são internas (sem internet) e
+    # nenhuma tem contêiner do CRUD: o ai-api não alcança o admin-api nem a rede edge.
+    networks: [ai-edge, ai-data]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    depends_on:
+      ai-migrate:
+        condition: service_completed_successfully
+
 networks:
   edge: {}
   # Sem saída para a internet e sem nenhum contêiner da IA: o banco do CRUD só existe para o admin-api.
@@ -210,6 +237,9 @@ networks:
   ai-egress: {}
   # Sem saída para a internet e sem nenhum contêiner do CRUD: o banco da IA só existe para os serviços da IA.
   ai-data:
+    internal: true
+  # Entre o Caddy e o ai-api, e nada mais. Interna: o ai-api não tem saída para a internet.
+  ai-edge:
     internal: true
 
 volumes:

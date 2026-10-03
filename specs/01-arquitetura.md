@@ -113,7 +113,7 @@ O GitHub é reindexado todo dia às 03:00 (horário de São Paulo). Sem webhook,
    - arquivo grande é dividido;
    - cada trecho recebe um título em terceira pessoa.
 6. **Gera os embeddings.**
-7. **Ativa a versão** e faz `NOTIFY ai_index`. O `ai-api` recarrega o índice em memória.
+7. **Ativa a versão** e faz `NOTIFY ai_index`. O `ai-api` recarrega o índice em memória: na prática ele confere o id da versão ativa a cada 30 s (mais simples e mais robusto que manter uma conexão de LISTEN), e o `NOTIFY` fica como sinal para quem quiser ouvir.
 
 **Arquivos que entram:**
 - `.java`, `.kt`, `.ts`, `.dart`, `.cs`, `.md`;
@@ -254,7 +254,7 @@ Valores iniciais propostos:
 | `max_tokens` da resposta | 300 |
 | Tamanho da pergunta | até 500 caracteres |
 
-- **Rate limit:** Bucket4j em memória, chaveado por `HMAC(chave do dia, IP)`. A chave do dia é derivada por HKDF, então não dá para reverter o hash nem ligar o mesmo IP entre dias.
+- **Rate limit:** balde de fichas em memória (implementação própria, sem Bucket4j: são 60 linhas e zero dependência), chaveado por `HMAC(chave do dia, IP)` no chat (Fase 4). No MCP (Fase 3) a chave é o próprio IP, só em memória: nunca é gravado nem aparece em log. A chave do dia é derivada por HKDF, então não dá para reverter o hash nem ligar o mesmo IP entre dias.
 - **Disjuntor:** abre quando o gasto do dia atinge o teto e fecha à meia-noite (horário de São Paulo).
 
 ## Infraestrutura
@@ -270,10 +270,11 @@ Valores iniciais propostos:
 | `postgres-ai` | `ai-data` (interna) | nenhuma | 384 MB | 2 |
 | `ai-migrate` | `ai-data` | nenhuma | roda e sai | 2 |
 | `ai-indexer` | `ai-egress`, `ai-data` | nenhuma | 1 GB | 2 |
-| `ai-api` | `edge`, `ai-data` | nenhuma | 1 GB | 3 |
+| `ai-api` | `ai-edge`, `ai-data` | nenhuma | 512 MB | 3 |
 
 - **Isolamento de rede:** os contêineres da IA não entram na rede `admin-data`, então o `postgres-admin` é inalcançável para eles. O `ai-indexer` também não usa a rede `edge` do CRUD: ele sai para a internet por uma rede própria, a `ai-egress`, e por isso não enxerga o `admin-api` nem o Caddy.
-- **`/tmp` do `ai-indexer` com `exec`:** o ONNX Runtime e o tokenizador extraem as bibliotecas nativas do jar para o diretório temporário e as carregam de lá, e o Docker monta `tmpfs` sem permissão de execução por padrão.
+- **Rede do `ai-api`:** ele fica em `ai-edge` (só com o Caddy) e `ai-data` (só com o `postgres-ai`). As duas são `internal`, então ele não tem saída para a internet e não alcança o `admin-api`: o modelo de embeddings vem do volume `ai-models`, que o `ai-indexer` baixa e verifica, e o `ai-api` só lê (montado `ro`).
+- **`/tmp` do `ai-indexer` e do `ai-api` com `exec`:** o ONNX Runtime e o tokenizador extraem as bibliotecas nativas do jar para o diretório temporário e as carregam de lá, e o Docker monta `tmpfs` sem permissão de execução por padrão.
 - **Por que não há Redis:** o `ai-api` é uma instância só. O rate limit fica em memória e o gasto diário fica no `postgres-ai`.
 - **O Docker ignora o `ufw`:** uma porta publicada fica aberta para a internet mesmo com o firewall bloqueando. Por isso só o Caddy publica porta, e só a 443. Com o modo Full (strict) da Cloudflare, a porta 80 não é necessária.
 

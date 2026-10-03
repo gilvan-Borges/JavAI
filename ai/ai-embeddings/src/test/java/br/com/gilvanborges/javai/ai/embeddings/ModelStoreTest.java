@@ -53,6 +53,21 @@ class ModelStoreTest {
     }
 
     @Test
+    void find_verified_so_confere_o_que_ja_esta_no_disco_sem_baixar() throws Exception {
+        var file = file("/model", sha256(CONTENT));
+        var store = new ModelStore(directory);
+
+        assertThat(store.findVerified(List.of(file))).isEmpty();
+        assertThat(downloads.get()).isZero();
+
+        store.ensure(List.of(file));
+        assertThat(store.findVerified(List.of(file))).contains(directory);
+
+        Files.writeString(directory.resolve("model.onnx"), "adulterado");
+        assertThat(store.findVerified(List.of(file))).isEmpty();
+    }
+
+    @Test
     void baixa_confere_o_hash_e_guarda_o_arquivo() throws Exception {
         var file = file("/model", sha256(CONTENT));
 

@@ -162,12 +162,15 @@ data: {"turn":{"turnId":"01J...","question":"...","answer":"...","issuedAt":"...
 - **Transporte:** Streamable HTTP sem estado, com o SDK oficial para Java. `GET /mcp` responde 405.
 - **Origem:** `Origin` presente e fora da lista → 403. A ausência do cabeçalho é aceita.
 - **Sem CORS.**
-- **Rate limit:** 60 chamadas por minuto por IP.
+- **Rate limit:** 60 chamadas por minuto por IP, com `429` e `Retry-After`. O IP vem do `X-Real-IP`, que o Caddy escreve a partir do IP real da Cloudflare.
+- **Corpo:** no máximo 64 KB (`413` acima disso). O `Accept` precisa listar `application/json` e `text/event-stream`.
+- **Origem padrão aceita:** `https://gilvanborges.com.br` (configurável em `AIAPI_ALLOWED_ORIGINS`).
+- **Sem índice ainda:** as ferramentas respondem `isError` com "the index is not available yet", em vez de falhar.
 - **Ferramentas:** todas só de leitura, com `lang` (`en`, o padrão, ou `pt`), texto mais `structuredContent` e `outputSchema` declarado.
 
 | Ferramenta | Entrada | Devolve |
 |---|---|---|
-| `get_profile` | nenhuma | Perfil público e links |
+| `get_profile` | nenhuma | Perfil público e links (portfólio, GitHub, LinkedIn) |
 | `list_projects` | nenhuma | Projetos com status, stack e slug |
 | `get_project` | `slug` | Projeto completo. Slug desconhecido gera `isError` com a lista dos válidos |
 | `list_experience` | nenhuma | Experiências em ordem |
