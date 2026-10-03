@@ -108,27 +108,50 @@ public class ChatService {
         List<ChatRequest.Turn> history = signer.verified(request.history());
 
         // Em paralelo: o Jev classifica e a busca roda. Nenhum depende do outro.
-        CompletableFuture<Optional<Classification>> classification = CompletableFuture
-                .supplyAsync(() -> classifier.classify(request.question(), lang), workers)
-                .completeOnTimeout(Optional.empty(), props.jevTimeoutMs(), TimeUnit.MILLISECONDS)
-                .exceptionally(e -> Optional.empty());
-        CompletableFuture<List<HybridSearcher.Hit>> search = CompletableFuture.supplyAsync(() -> {
+        CompletableFuture<Timed<Optional<Classification>>> classification = CompletableFuture
+                .supplyAsync(() -> {
+                    long t = System.nanoTime();
+                    return new Timed<>(classifier.classify(request.question(), lang), elapsedMs(t));
+                }, workers)
+                .completeOnTimeout(new Timed<>(Optional.empty(), props.jevTimeoutMs()), props.jevTimeoutMs(), TimeUnit.MILLISECONDS)
+                .exceptionally(e -> new Timed<>(Optional.empty(), 0));
+        CompletableFuture<Timed<Found>> search = CompletableFuture.supplyAsync(() -> {
+            long t = System.nanoTime();
             float[] vector = active.hasVectors() ? embedder.embed(request.question(), active.embeddingModel()).orElse(null) : null;
-            return active.search(request.question(), vector, lang, SOURCES);
+            return new Timed<>(new Found(active.search(request.question(), vector, lang, SOURCES), vector != null), elapsedMs(t));
         }, workers);
 
-        Router.Decision decision = Router.decide(classification.join());
+        Timed<Optional<Classification>> classified = classification.join();
+        Router.Decision decision = Router.decide(classified.value());
+        var classifyTrace = new LinkedHashMap<String, Object>();
+        classifyTrace.put("step", "classify");
+        classifyTrace.put("ok", classified.value().isPresent());
+        classifyTrace.put("category", decision.category() == null ? null : decision.category().key());
+        classifyTrace.put("confidence", decision.confidence());
+        classifyTrace.put("ms", classified.ms());
+        sink.send("trace", classifyTrace);
+
         if (decision.action() == Router.Action.REFUSE) {
             usage.refusal();
             sink.send("refusal", Map.of("reason", decision.refusalReason(), "text", Messages.refusal(lang, decision.refusalReason())));
             return;
         }
 
-        List<Chunk> sources = search.join().stream().map(HybridSearcher.Hit::chunk).toList();
+        Timed<Found> found = search.join();
+        var searchTrace = new LinkedHashMap<String, Object>();
+        searchTrace.put("step", "search");
+        searchTrace.put("mode", found.value().vector() ? "hybrid" : "bm25");
+        searchTrace.put("hits", found.value().hits().size());
+        searchTrace.put("model", found.value().vector() ? active.embeddingModel() : null);
+        searchTrace.put("ms", found.ms());
+        sink.send("trace", searchTrace);
+
+        List<Chunk> sources = found.value().hits().stream().map(HybridSearcher.Hit::chunk).toList();
         String canary = keys.canary(PromptBuilder.VERSION);
         PromptBuilder.Prompt prompt = PromptBuilder.build(request.question(), lang, sources, history, canary);
         List<String> models = decision.tier() == Router.Tier.FORTE ? props.modelsStrong() : props.modelsFast();
         String turnId = UUID.randomUUID().toString();
+        sink.send("trace", Map.of("step", "route", "tier", decision.tier() == Router.Tier.FORTE ? "forte" : "rapido", "models", models));
 
         var meta = new LinkedHashMap<String, Object>();
         meta.put("turnId", turnId);
@@ -181,6 +204,7 @@ public class ChatService {
             return;
         }
 
+        sink.send("trace", Map.of("step", "guard", "ok", true, "checks", List.of("url", "html", "image", "canary", "citations")));
         sink.send("sources", citedSources(text, sources));
         ChatRequest.Turn turn = signer.sign(turnId, request.question(), text);
         var usageOut = new LinkedHashMap<String, Object>();
@@ -213,6 +237,12 @@ public class ChatService {
             out.add(s);
         }
         return out;
+    }
+
+    private record Timed<T>(T value, int ms) {
+    }
+
+    private record Found(List<HybridSearcher.Hit> hits, boolean vector) {
     }
 
     private long secondsUntilMidnight() {
