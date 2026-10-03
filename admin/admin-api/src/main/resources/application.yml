@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: admin-api
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${ADMIN_DB_URL:jdbc:postgresql://postgres-admin:5432/admin?logServerErrorDetail=false&ApplicationName=admin-api}
+    username: admin_app
+    # Sem valor padrão: sem a senha no ambiente, o app não sobe.
+    password: ${ADMIN_APP_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never
+    include-message: never
+  max-http-request-header-size: 16KB
+
+# Actuator só na porta interna; o Caddy não roteia para ela.
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /admin/v3/api-docs
+  swagger-ui:
+    path: /admin/swagger-ui
+
+admin:
+  access:
+    jwks-uri: ${ADMIN_ACCESS_JWKS_URI}
+    issuer: ${ADMIN_ACCESS_ISSUER}
+    audience: ${ADMIN_ACCESS_AUDIENCE}
+    owner-email: ${ADMIN_OWNER_EMAIL}
+  portfolio:
+    deploy-hook-url: ${ADMIN_PORTFOLIO_DEPLOY_HOOK:}
+  snapshot:
+    directory: ${ADMIN_SNAPSHOT_DIR:/srv/conteudo/v1/snapshot}

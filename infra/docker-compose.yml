@@ -1,0 +1,128 @@
+# JavAI na VPS (spec 01, "Infraestrutura"). Fase 1: só o lado CRUD.
+# Os serviços da IA (postgres-ai, ai-migrate, ai-indexer, ai-api) entram na Fase 2, em outra rede de dados.
+#
+# Regra que não pode ser quebrada: só o Caddy publica porta. O Docker ignora o ufw, então qualquer outra
+# porta publicada ficaria aberta para a internet.
+
+name: javai
+
+x-endurecido: &endurecido
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+
+  caddy:
+    <<: *endurecido
+    image: caddy:2.11.6-alpine
+    # Escuta na 8443 dentro do contêiner, sem root e sem nenhuma capability; o Docker leva a 443 até ela.
+    user: "1000:1000"
+    ports:
+      - "443:8443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/etc/caddy/certs:ro
+      - conteudo:/srv/conteudo:ro
+    tmpfs:
+      - /data
+      - /config
+      - /tmp
+    networks: [edge]
+    mem_limit: 128m
+    # Sem depends_on: se o admin-api cair, o snapshot em conteudo. continua no ar.
+
+  postgres-admin:
+    <<: *endurecido
+    image: postgres:18-alpine
+    user: "70:70"
+    command:
+      - postgres
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - listen_addresses=*
+      - -c
+      - shared_buffers=96MB
+      - -c
+      - log_connections=on
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?defina no .env}
+    volumes:
+      - postgres-admin-data:/var/lib/postgresql
+      - ./postgres-admin/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    tmpfs:
+      - /var/run/postgresql
+      - /tmp
+    networks: [admin-data]
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  admin-migrate:
+    <<: *endurecido
+    image: ghcr.io/gilvan-borges/javai-admin-migrations:${JAVAI_TAG:?defina no .env}
+    restart: "no"
+    environment:
+      ADMIN_DB_HOST: postgres-admin
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?defina no .env}
+      ADMIN_OWNER_PASSWORD: ${ADMIN_OWNER_PASSWORD:?defina no .env}
+      ADMIN_APP_PASSWORD: ${ADMIN_APP_PASSWORD:?defina no .env}
+    tmpfs:
+      - /tmp
+    networks: [admin-data]
+    mem_limit: 256m
+    depends_on:
+      postgres-admin:
+        condition: service_healthy
+
+  admin-api:
+    <<: *endurecido
+    image: ghcr.io/gilvan-borges/javai-admin-api:${JAVAI_TAG:?defina no .env}
+    environment:
+      ADMIN_DB_URL: jdbc:postgresql://postgres-admin:5432/admin?logServerErrorDetail=false&ApplicationName=admin-api
+      ADMIN_APP_PASSWORD: ${ADMIN_APP_PASSWORD:?defina no .env}
+      ADMIN_ACCESS_JWKS_URI: ${ADMIN_ACCESS_JWKS_URI:?defina no .env}
+      ADMIN_ACCESS_ISSUER: ${ADMIN_ACCESS_ISSUER:?defina no .env}
+      ADMIN_ACCESS_AUDIENCE: ${ADMIN_ACCESS_AUDIENCE:?defina no .env}
+      ADMIN_OWNER_EMAIL: ${ADMIN_OWNER_EMAIL:?defina no .env}
+      ADMIN_PORTFOLIO_DEPLOY_HOOK: ${ADMIN_PORTFOLIO_DEPLOY_HOOK:-}
+      ADMIN_SNAPSHOT_DIR: /srv/conteudo/v1/snapshot
+    volumes:
+      - conteudo:/srv/conteudo
+    tmpfs:
+      - /tmp
+    # edge para sair à internet (deploy hook) e ser alcançado pelo Caddy; admin-data para o banco.
+    networks: [edge, admin-data]
+    mem_limit: 640m
+    healthcheck:
+      # A imagem não tem curl: o bash abre a conexão com a porta interna do actuator.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    depends_on:
+      admin-migrate:
+        condition: service_completed_successfully
+
+networks:
+  edge: {}
+  # Sem saída para a internet e sem nenhum contêiner da IA: o banco do CRUD só existe para o admin-api.
+  admin-data:
+    internal: true
+
+volumes:
+  postgres-admin-data: {}
+  conteudo: {}

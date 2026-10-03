@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>br.com.gilvanborges.javai</groupId>
+        <artifactId>javai-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>javai-admin</artifactId>
+    <packaging>pom</packaging>
+    <name>JavAI · CRUD</name>
+    <description>O CRUD do conteúdo. Não sabe que a IA existe: só publica o snapshot (spec 01).</description>
+
+    <modules>
+        <module>admin-migrations</module>
+        <module>admin-api</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>br.com.gilvanborges.javai</groupId>
+                <artifactId>admin-migrations</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>crud-isolado-da-ia</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>br.com.gilvanborges.javai:ai-*</exclude>
+                                    </excludes>
+                                    <message>O CRUD não pode depender de módulos da IA (spec 01, "A regra de isolamento").</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

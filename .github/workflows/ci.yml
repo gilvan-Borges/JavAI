@@ -1,0 +1,70 @@
+# CI do JavAI (spec 01, "Deploy"). Actions fixadas por SHA e permissões mínimas por job.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build e testes
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      # Testcontainers usa o Docker do runner: aqui os testes de papéis, RLS e publicação rodam de verdade.
+      - name: Build, testes, ArchUnit e Maven Enforcer
+        run: mvn -B verify
+
+  images:
+    name: Imagens no GHCR
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io/gilvan-borges
+      TAG: ${{ github.sha }}
+      TRIVY_IMAGE: aquasec/trivy:0.75.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Jars
+        run: mvn -B -DskipTests package
+      - name: Build das imagens
+        run: |
+          docker build -t "$REGISTRY/javai-admin-api:$TAG" admin/admin-api
+          docker build -t "$REGISTRY/javai-admin-migrations:$TAG" admin/admin-migrations
+      - name: Trivy (falha com vulnerabilidade alta ou crítica que já tem correção)
+        run: |
+          for image in javai-admin-api javai-admin-migrations; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image \
+              --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress "$REGISTRY/$image:$TAG"
+          done
+      - name: Publica no GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          for image in javai-admin-api javai-admin-migrations; do
+            docker push "$REGISTRY/$image:$TAG"
+          done

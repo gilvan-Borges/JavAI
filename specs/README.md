@@ -5,9 +5,9 @@ O JavAI segue Spec-Driven Development. Toda mudança de direção entra primeiro
 | # | Spec | Assunto | Status |
 |---|---|---|---|
 | 00 | [Visão](00-visao.md) | Problema, público, objetivos, o que fica de fora, fases | Rascunho |
-| 01 | [Arquitetura](01-arquitetura.md) | Módulos, fluxo do chat, roteador, busca, indexador, infraestrutura, deploy | Rascunho |
-| 02 | [Dados e acesso](02-dados-e-acesso.md) | Schemas, papéis do PostgreSQL, permissões, RLS, testes de acesso | Rascunho |
-| 03 | [Contrato da API](03-contrato-api.md) | Endpoints públicos, MCP e admin; eventos do streaming; erros | Rascunho |
+| 01 | [Arquitetura](01-arquitetura.md) | Isolamento entre CRUD e IA, módulos, publicação, indexador, chat, infraestrutura, deploy | Rascunho |
+| 02 | [Dados e acesso](02-dados-e-acesso.md) | Os dois bancos (CRUD e IA), papéis, permissões, RLS, testes de acesso | Rascunho |
+| 03 | [Contrato da API](03-contrato-api.md) | Snapshot do conteúdo, API da IA, MCP e admin; eventos do streaming; erros | Rascunho |
 | 04 | [Ameaças](04-ameacas.md) | Ativos, atores, OWASP LLM Top 10, infraestrutura, resposta a incidente | Rascunho |
 | 05 | [Avaliação](05-avaliacao.md) | Bateria, verificador, juiz, busca, guarda, modelos, critérios para lançar | Rascunho |
 

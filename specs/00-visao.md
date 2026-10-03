@@ -40,8 +40,10 @@ O modelo de linguagem só escreve a resposta. O que ele lê, se a pergunta é ac
 | Recrutador | Chat no portfólio | Respostas curtas, em português ou inglês, com link para a prova |
 | Tech lead | Chat no portfólio | Evidência no código: repositório, arquivo, linha |
 | Assistente de IA (Claude, ChatGPT etc.) | Servidor MCP | Ferramentas só de leitura, com dados estruturados |
-| Portfólio, no build | API de conteúdo | O conteúdo publicado, para montar as páginas |
-| Gilvan | Swagger UI do admin | Cadastrar, revisar e publicar |
+| Portfólio, no build | Snapshot estático publicado pelo CRUD | O conteúdo publicado, para montar as páginas |
+| Gilvan | Swagger UI do admin (CRUD) | Cadastrar, revisar e publicar |
+
+O repositório tem dois serviços isolados, o **CRUD** e a **IA**, sem código, banco nem rede de dados em comum ([01](01-arquitetura.md#a-regra-de-isolamento)).
 
 ## Objetivos
 
@@ -64,7 +66,7 @@ O modelo de linguagem só escreve a resposta. O que ele lê, se a pergunta é ac
 ## Princípios
 
 1. **Evidência ou "não encontrei".** Nenhuma lacuna é preenchida com suposição.
-2. **A IA não vaza o que não consegue ler.** O conteúdo privado nunca chega ao papel de banco usado pela IA.
+2. **A IA não vaza o que não consegue ler.** O conteúdo privado fica no banco do CRUD, que a IA não alcança nem pela rede. A IA só recebe o snapshot público.
 3. **Nada secreto no prompt.** Se o prompt vazar, ninguém ganha nada com isso.
 4. **O modelo nunca escolhe nada que custe dinheiro ou dê acesso:** nem o próprio modelo, nem consultas, nem ferramentas.
 5. **Medir antes de decidir.** Modelo, prompt e busca mudam com base na bateria de avaliação, não por impressão.
@@ -75,9 +77,9 @@ O modelo de linguagem só escreve a resposta. O que ele lê, se a pergunta é ac
 | Fase | Entrega | Usa LLM? |
 |---|---|---|
 | 0 | Estas specs | Não |
-| 1 | Fundação: Maven multimódulo, PostgreSQL com papéis e RLS testados, admin-api com CRUD e Swagger UI atrás do Cloudflare Access, API de conteúdo para o portfólio, docker-compose da VPS | Não |
-| 2 | Indexador: CRUD e GitHub, evidências de habilidades, embeddings locais, busca híbrida e avaliação da busca | Não |
-| 3 | Servidor MCP só de leitura | Não |
+| 1 | **CRUD:** banco do admin com papéis e RLS testados, admin-api com CRUD e Swagger UI atrás do Cloudflare Access, publicação do snapshot estático para o portfólio, docker-compose da VPS | Não |
+| 2 | **Fundação da IA:** banco da IA, `ai-core`, `ai-indexer` (snapshot e GitHub), evidências de habilidades, embeddings locais, busca híbrida e avaliação da busca | Não |
+| 3 | Servidor MCP só de leitura (`ai-api`) | Não |
 | 4 | Bateria de ataques (escrita antes do prompt), chat com OpenRouter, roteador Jev, guardas, Turnstile | Sim |
 | 5 | Painel público, comparação de modelos, notas técnicas | Sim |
 
@@ -90,7 +92,7 @@ A IA responde com base no código, não no README. Na análise de 2 de outubro d
 - [ ] `FightConnect2025/apiSuporte`: tem só 1 arquivo de teste e nenhuma migração Flyway, mas o README do perfil cita Testcontainers e Flyway.
 - [ ] `FightConnect2025/fightconnect-worker-notifications`: aparece em destaque no README do perfil e retorna 404.
 - [ ] `ordens-servico-campo`: só tem o README, embora a descrição prometa Java 21 e DDD.
-- [ ] `webPonto`: tem 30.497 arquivos de `node_modules` e a pasta `.angular` commitados, e não tem `.gitignore`. Com o histórico, passa de 60 MB, acima do limite do indexador ([01](01-arquitetura.md#indexador-admin-api)). Correção:
+- [ ] `webPonto`: tem 30.497 arquivos de `node_modules` e a pasta `.angular` commitados, e não tem `.gitignore`. Com o histórico, passa de 60 MB, acima do limite do indexador ([01](01-arquitetura.md#indexador-ai-indexer)). Correção:
   - remover `node_modules` e `.angular` do histórico com `git filter-repo` e fazer push forçado (antes, combinar com quem usa o branch `matheus-dev`);
   - depois, adicionar o `.gitignore`.
 - [ ] `formacao-coti` (apiHistoricos, apiUsuarios) e `desafioWebApi`: têm senhas escritas no `application.properties`. Trocar por variáveis de ambiente.
@@ -106,5 +108,6 @@ A IA responde com base no código, não no README. Na análise de 2 de outubro d
 ## Decisões tomadas
 
 - **Idiomas (2026-10-02):** português e inglês desde a Fase 1. O CRUD, o snapshot e o MCP já nascem bilíngues.
-- **Publicar na Fase 1:** gera só o snapshot do conteúdo, sem trechos nem embeddings. O indexador completo entra na Fase 2, sobre a mesma rota `POST /admin/v1/publish`.
-- **Módulos criados quando houver uso:** `adapters` nasce na Fase 2 (GitHub, ONNX) e `evals` na Fase 4.
+- **CRUD e IA isolados no mesmo repositório (2026-10-02):** nada de código, banco ou rede de dados compartilhados. O indexador fica do lado da IA, e o CRUD não sabe que a IA existe.
+- **Publicar, no CRUD:** gera o snapshot em pt e en e o exporta como arquivo estático. A IA o lê como qualquer fonte pública.
+- **Módulos criados quando houver uso:** os módulos `ai/*` nascem na Fase 2, e `ai/evals` na Fase 4.

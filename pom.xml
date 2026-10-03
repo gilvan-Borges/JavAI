@@ -3,6 +3,10 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!--
+        Pai comum só de versões e plugins. Nenhum código é compartilhado entre o CRUD (admin/) e a IA (ai/):
+        cada lado tem o seu agregador, e o Maven Enforcer de cada um proíbe dependência do outro (spec 01).
+    -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -16,7 +20,7 @@
     <packaging>pom</packaging>
 
     <name>JavAI</name>
-    <description>Responde perguntas sobre o Gilvan Borges com evidência tirada do código público dele.</description>
+    <description>CRUD do conteúdo e IA que responde sobre o Gilvan Borges, isolados no mesmo repositório.</description>
 
     <properties>
         <java.version>25</java.version>
@@ -25,32 +29,14 @@
     </properties>
 
     <modules>
-        <module>core</module>
-        <module>migrations</module>
-        <module>admin-api</module>
-        <module>ai-api</module>
+        <module>admin</module>
     </modules>
 
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>br.com.gilvanborges.javai</groupId>
-                <artifactId>javai-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>br.com.gilvanborges.javai</groupId>
-                <artifactId>javai-migrations</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-                <version>${springdoc.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.springdoc</groupId>
-                <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
                 <version>${springdoc.version}</version>
             </dependency>
             <dependency>
