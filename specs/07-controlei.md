@@ -84,7 +84,7 @@ O Controlei roda na VPS do JavAI como um **segundo projeto Compose** (`/opt/cont
 | Tetos de memória por serviço (~1,7 GB) | `mem_limit` em todos; heap do Kafka em 384 MB | A VPS tem 7,9 GB e o JavAI já usa ~1,8 GB; o Controlei não pode derrubar vizinhos |
 | Dados em rede `internal` | Postgres, Redis (com senha) e Kafka sem rota para a internet | Só o `back` os alcança; a rede `app` tem saída apenas para o provedor de IA, quando ligado |
 | IP real atrás de dois proxies | O Caddy manda `X-Real-IP`; o gateway só o aceita vindo da subnet da rede de borda | Sem isso, todos os visitantes dividiriam um limite de requisições |
-| Instância privada por padrão | Cloudflare Access (só o e-mail do dono) + cadastro de famílias **fechado** (`REGISTRATION_ENABLED=false`) | Um app financeiro com cadastro aberto atrai contas de desconhecidos e gasta a cota de IA |
+| Instância **pública** (decisão do dono, 2026-10-04) | Sem Cloudflare Access e com cadastro aberto na VPS; o padrão do `.env.vps.example` continua fechado. Limites por IP no gateway, bloqueio de login por e-mail, IA desligada | O Controlei é uma vitrine que precisa ser testável por quem avalia. Ficou para depois um CAPTCHA no cadastro e o backup do Postgres. Para fechar de novo: `REGISTRATION_ENABLED=false` ou recriar a política do Access |
 
 O passo a passo, os segredos e o que ainda é manual (DNS, Access, credencial OIDC da Tailscale para este repositório, variáveis do GitHub) estão em `deploy/README.md` do repositório do Controlei e em `infra/README.md`, seção 6.
 
