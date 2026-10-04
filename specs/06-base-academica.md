@@ -13,6 +13,10 @@ Elas são **a base de tudo**: toda decisão técnica do projeto precisa ou segui
 
 Os PDFs ficam fora do Git (são material da instituição, com marca e contato). O dono guarda as cópias na raiz do clone; o Git as ignora.
 
+## Projetos que seguem a mesma régua
+
+O [Controlei](07-controlei.md) (finanças familiares, repositório próprio) usa estas ementas e este formato de tabela. O mapa dele está na spec 07.
+
 ## Como ler as tabelas
 
 - **Atende:** implementado e com teste ou verificação em produção.
