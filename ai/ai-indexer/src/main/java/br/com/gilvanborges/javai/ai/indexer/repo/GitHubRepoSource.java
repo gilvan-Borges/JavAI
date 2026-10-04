@@ -46,6 +46,9 @@ public class GitHubRepoSource implements RepoSource {
     private static final Logger LOG = LoggerFactory.getLogger(GitHubRepoSource.class);
     private static final Pattern FULL_NAME = Pattern.compile("^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$");
     private static final int MAX_FILES = 600;
+    /** Quantos commits entram no dossiê. O clone raso passa a ter essa profundidade, então não há chamada extra à API do GitHub. */
+    static final int COMMIT_HISTORY = 10;
+    private static final int MAX_COMMIT_MESSAGE = 100;
 
     private final IndexerProperties properties;
     private final HttpClient http = HttpClient.newBuilder()
@@ -152,7 +155,7 @@ public class GitHubRepoSource implements RepoSource {
             try (Git git = Git.cloneRepository()
                     .setURI(url)
                     .setDirectory(dir.toFile())
-                    .setDepth(1)
+                    .setDepth(COMMIT_HISTORY)
                     .setBranch("refs/heads/" + branch)
                     .setCloneSubmodules(false)
                     .setTimeout(120)
@@ -163,8 +166,14 @@ public class GitHubRepoSource implements RepoSource {
                     return RepoRead.skipped(fullName, "repositório vazio (sem commits)");
                 }
                 String sha = headId.getName();
-                var head = git.log().setMaxCount(1).call().iterator().next();
-                return collect(fullName, sha, dir, facts(fullName, meta, head));
+                var commits = new ArrayList<org.eclipse.jgit.revwalk.RevCommit>();
+                git.log().setMaxCount(COMMIT_HISTORY).call().forEach(commits::add);
+                String facts = facts(fullName, meta, commits, true);
+                if (SecretScanner.firstFinding(facts).isPresent()) {
+                    // Uma mensagem de commit com algo parecido com segredo não derruba o dossiê: ele sai só com datas e hashes.
+                    facts = facts(fullName, meta, commits, false);
+                }
+                return collect(fullName, sha, dir, facts);
             }
         } finally {
             deleteRecursively(dir);
@@ -212,23 +221,53 @@ public class GitHubRepoSource implements RepoSource {
         return new RepoRead(fullName, sha, files, null, notes);
     }
 
-    /** Resumo em texto dos fatos públicos do repositório (datas, linguagem, último commit), nos dois idiomas. */
-    static String facts(String fullName, JsonNode meta, org.eclipse.jgit.revwalk.RevCommit head) {
-        String commitDate = head.getCommitterIdent().getWhenAsInstant().atZone(java.time.ZoneOffset.UTC)
-                .toLocalDate().toString();
-        String message = head.getShortMessage();
+    /**
+     * O dossiê do repositório em texto, nos dois idiomas: datas, linguagem, tópicos, o último commit (com as etiquetas que o
+     * {@link RepoActivity} lê) e os commits recentes. Tudo vem do clone e da chamada de metadados que já existiam.
+     *
+     * @param withMessages falso para omitir as mensagens dos commits (quando uma delas parece segredo)
+     */
+    static String facts(String fullName, JsonNode meta, List<org.eclipse.jgit.revwalk.RevCommit> commits, boolean withMessages) {
+        var head = commits.get(0);
         var sb = new StringBuilder();
         sb.append("# Informações do repositório / Repository facts\n\n");
         sb.append("Repositório / Repository: ").append(fullName).append("\n");
-        sb.append(RepoActivity.COMMIT_LABEL).append(commitDate).append(" (UTC), commit ")
+        sb.append(RepoActivity.COMMIT_LABEL).append(utcDate(head)).append(" (UTC), commit ")
                 .append(head.getName(), 0, 7).append("\n");
-        sb.append(RepoActivity.MESSAGE_LABEL).append(message).append("\n");
+        if (withMessages) {
+            sb.append(RepoActivity.MESSAGE_LABEL).append(commitMessage(head)).append("\n");
+        }
         appendField(sb, "Último push / Last push", meta.path("pushed_at").asString(""));
         appendField(sb, "Criado em / Created", meta.path("created_at").asString(""));
+        appendField(sb, "Branch principal / Default branch", meta.path("default_branch").asString(""));
         appendField(sb, "Linguagem principal / Main language", meta.path("language").asString(""));
         appendField(sb, "Descrição / Description", meta.path("description").asString(""));
+        var topics = new ArrayList<String>();
+        for (JsonNode topic : meta.path("topics")) {
+            topics.add(topic.asString(""));
+        }
+        appendField(sb, "Tópicos / Topics", String.join(", ", topics.stream().filter(s -> !s.isBlank()).toList()));
+        appendField(sb, "Licença / License", meta.path("license").path("spdx_id").asString(""));
         appendField(sb, "Estrelas / Stars", meta.path("stargazers_count").asString(""));
+        sb.append("\n## Commits recentes / Recent commits\n");
+        for (var commit : commits) {
+            sb.append("- ").append(utcDate(commit)).append(" · ").append(commit.getName(), 0, 7);
+            if (withMessages) {
+                sb.append(" · ").append(commitMessage(commit));
+            }
+            sb.append("\n");
+        }
         return sb.toString();
+    }
+
+    private static String utcDate(org.eclipse.jgit.revwalk.RevCommit commit) {
+        return commit.getCommitterIdent().getWhenAsInstant().atZone(java.time.ZoneOffset.UTC).toLocalDate().toString();
+    }
+
+    /** Primeira linha da mensagem, sem caracteres de controle e com tamanho limitado (o e-mail do autor nunca entra). */
+    private static String commitMessage(org.eclipse.jgit.revwalk.RevCommit commit) {
+        String text = commit.getShortMessage().replaceAll("\\p{Cntrl}", " ").strip();
+        return text.length() > MAX_COMMIT_MESSAGE ? text.substring(0, MAX_COMMIT_MESSAGE).strip() + "…" : text;
     }
 
     private static void appendField(StringBuilder sb, String label, String value) {

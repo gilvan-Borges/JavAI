@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -181,6 +182,38 @@ class GitHubRepoSourceTest {
         assertThat(read.files()).isEmpty();
     }
 
+    @Test
+    void dossie_traz_os_commits_recentes_os_topicos_e_a_branch() throws Exception {
+        metadataJson = "{\"private\":false,\"fork\":false,\"size\":100,\"default_branch\":\"main\",\"language\":\"Java\","
+                + "\"description\":\"Financas da familia\",\"topics\":[\"java\",\"kafka\"],\"license\":{\"spdx_id\":\"MIT\"}}";
+        createRepoWithCommits("dono", "historia", List.of("primeiro commit", "segundo commit", "terceiro commit"));
+
+        var read = source().read("dono/historia");
+
+        String facts = read.files().stream().filter(f -> f.path().equals("REPO_FACTS.md")).findFirst().orElseThrow().content();
+        assertThat(facts).contains("## Commits recentes / Recent commits")
+                .contains("terceiro commit", "segundo commit", "primeiro commit")
+                .contains("Tópicos / Topics: java, kafka")
+                .contains("Branch principal / Default branch: main")
+                .contains("Licença / License: MIT");
+        // O mais recente vem primeiro.
+        assertThat(facts.indexOf("terceiro commit")).isLessThan(facts.indexOf("primeiro commit"));
+        // O último commit continua legível pelo documento de atividade.
+        assertThat(RepoActivity.from(read)).hasValueSatisfying(e -> assertThat(e.message()).isEqualTo("terceiro commit"));
+    }
+
+    @Test
+    void mensagem_de_commit_com_segredo_nao_derruba_o_dossie_e_nao_vaza() throws Exception {
+        createRepoWithCommits("dono", "vazou", List.of("inicial", "chore: String password = \"SenhaCommitada99\";"));
+
+        var read = source().read("dono/vazou");
+
+        String facts = read.files().stream().filter(f -> f.path().equals("REPO_FACTS.md")).findFirst().orElseThrow().content();
+        assertThat(facts).doesNotContain("SenhaCommitada99").doesNotContain("password");
+        assertThat(facts).contains("## Commits recentes / Recent commits");
+        assertThat(facts.lines().filter(l -> l.startsWith("- ")).count()).isEqualTo(2);
+    }
+
     // --- helpers -------------------------------------------------------------------------------------------
 
     private GitHubRepoSource source() {
@@ -198,6 +231,24 @@ class GitHubRepoSourceTest {
             Files.writeString(file, entry.getValue());
         }
         commitAndExpose(owner, name, src);
+    }
+
+    /** Cria um repositório com um commit por mensagem (o último é o mais recente) e o expõe como {@code <origem>/dono/nome.git}. */
+    private void createRepoWithCommits(String owner, String name, List<String> messages) throws Exception {
+        Path src = work.resolve("origem").resolve(owner).resolve(name + ".git-src");
+        Files.createDirectories(src);
+        try (Git git = Git.init().setDirectory(src.toFile()).setInitialBranch("main").call()) {
+            int i = 0;
+            for (String message : messages) {
+                Files.writeString(src.resolve("arquivo" + i++ + ".txt"), message);
+                git.add().addFilepattern(".").call();
+                git.commit().setMessage(message).setAuthor("t", "t@example.com").setCommitter("t", "t@example.com").setSign(false).call();
+            }
+        }
+        Path bare = work.resolve("origem").resolve(owner).resolve(name + ".git");
+        try (Git ignored = Git.cloneRepository().setURI(src.toUri().toString()).setDirectory(bare.toFile()).setBare(true).call()) {
+            assertThat(bare).exists();
+        }
     }
 
     private void commitAndExpose(String owner, String name, Path src) throws Exception {

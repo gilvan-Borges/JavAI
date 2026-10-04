@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 public final class RepoActivity {
 
     /** Nome do arquivo sintético de cada repositório (também usado por {@link GitHubRepoSource}). */
-    public static final String FACTS_FILE = "REPO_FACTS.md";
+    public static final String FACTS_FILE = br.com.gilvanborges.javai.ai.core.repo.RepoChunker.FACTS_FILE;
     /** Etiquetas do resumo: a mesma linha é escrita pelo {@link GitHubRepoSource} e lida aqui. */
     static final String COMMIT_LABEL = "Último commit / Latest commit: ";
     static final String MESSAGE_LABEL = "Mensagem do último commit / Latest commit message: ";

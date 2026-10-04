@@ -190,7 +190,9 @@ public class ChatService {
         sink.send("trace", searchTrace);
         latencies.record("search", found.ms());
 
-        List<Chunk> sources = withAnchors(found.value().hits().stream().map(HybridSearcher.Hit::chunk).toList(), active, lang, decision);
+        List<Chunk> sources = withActivity(
+                withAnchors(found.value().hits().stream().map(HybridSearcher.Hit::chunk).toList(), active, lang, decision),
+                active, lang, request.question());
         String canary = keys.canary(PromptBuilder.VERSION);
         PromptBuilder.Prompt prompt = PromptBuilder.build(request.question(), lang, sources, history, canary);
         List<String> models = decision.tier() == Router.Tier.FORTE ? props.modelsStrong() : props.modelsFast();
@@ -318,6 +320,30 @@ public class ChatService {
         for (Chunk hit : hits) {
             if (all.stream().noneMatch(c -> c.id().equals(hit.id()))) {
                 all.add(hit);
+            }
+        }
+        return List.copyOf(all);
+    }
+
+    /**
+     * Pergunta sobre atividade recente ("qual foi o último commit?") não cita repositório nenhum, e a busca por significado
+     * devolve só alguns resumos soltos: o modelo então escolhe o "mais recente" entre os poucos que viu. Nesse caso o
+     * documento que já compara todos os repositórios entra sempre, na frente (ver {@link ActivityIntent}).
+     */
+    static List<Chunk> withActivity(List<Chunk> chunks, ActiveIndex active, String lang, String question) {
+        if (!ActivityIntent.matches(question)) {
+            return chunks;
+        }
+        var all = new ArrayList<Chunk>(active.chunks().stream()
+                .filter(c -> c.kind() == SourceKind.GITHUB_PROFILE && c.sourceRef().startsWith("github-activity:")
+                        && c.lang().equals(lang))
+                .toList());
+        if (all.isEmpty()) {
+            return chunks;
+        }
+        for (Chunk c : chunks) {
+            if (all.stream().noneMatch(a -> a.id().equals(c.id()))) {
+                all.add(c);
             }
         }
         return List.copyOf(all);

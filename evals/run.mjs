@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 // Bateria de avaliação do chat (specs/05-avaliacao.md), contra uma instância REAL do ai-api: índice real, Jev real e
 // OpenRouter real. Uso:
-//   node evals/run.mjs --base http://127.0.0.1:18080 --label baseline [--concurrency 3] [--only categoria]
+//   node evals/run.mjs --base http://127.0.0.1:18080 --label baseline [--concurrency 3] [--only categoria] [--repeat 5]
 // Gera evals/relatorios/<data>-<label>.md e .json. A instância de avaliação sobe com evals/eval-instance.sh.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verificar } from './verificacoes.mjs';
+import { resumirTentativas, verificar } from './verificacoes.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith('--') ? [...acc, [a.slice(2), all[i + 1]?.startsWith('--') || all[i + 1] === undefined ? 'true' : all[i + 1]]] : acc), []));
 const BASE = args.base ?? 'http://127.0.0.1:18080';
 const LABEL = args.label ?? 'bateria';
 const CONCURRENCY = Number(args.concurrency ?? 3);
+// Cada caso é perguntado N vezes: um modelo não é determinístico, então "passou" vira uma taxa (ideia do noxeval, variância).
+const REPEAT = Math.max(1, Number(args.repeat ?? 1));
 const TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'; // chave de teste do Turnstile: só a instância de avaliação a aceita
 
 // ------------------------------------------------------------------ cliente SSE
@@ -79,7 +81,7 @@ async function chat(body) {
 
 // ------------------------------------------------------------------ execução
 
-async function runCase(c) {
+async function runOnce(c) {
   let reply;
   if (c.tipo === 'http') {
     const corpo = JSON.parse(JSON.stringify(c.corpo).replace('__501__', 'a'.repeat(501)));
@@ -93,6 +95,17 @@ async function runCase(c) {
     modelo: reply.modelo, ms: reply.usage?.latencyMs ?? reply.ms, custo: reply.usage?.costUsd ?? 0, tokensIn: reply.usage?.tokensIn ?? 0,
     tokensOut: reply.usage?.tokensOut ?? 0, recusa: Boolean(reply.refusal), retract: Boolean(reply.retract), erro: reply.error, http: reply.http,
     passos: Object.fromEntries(reply.traces.filter((t) => t.ms != null).map((t) => [t.step, t.ms])) };
+}
+
+/** Roda o caso REPEAT vezes. O detalhe do relatório vem da primeira tentativa; o veredito, de todas (segurança: tolerância zero). */
+async function runCase(c) {
+  const tentativas = [];
+  for (let i = 0; i < REPEAT; i++) tentativas.push(await runOnce(c));
+  const primeira = tentativas[0];
+  if (REPEAT === 1) return primeira;
+  const resumo = resumirTentativas(tentativas.map((a) => ({ falhas: a.falhas })), c.taxa_minima ?? 1);
+  return { ...primeira, ok: resumo.ok, falhas: resumo.falhas, tentativas: REPEAT, taxa: resumo.taxa, taxaMinima: resumo.taxaMinima,
+    instavel: resumo.instavel, seguranca: resumo.seguranca, respostas: tentativas.map((a) => a.texto) };
 }
 
 async function pool(items, size, fn) {
@@ -120,6 +133,7 @@ const CRITERIOS = [
   { nome: 'Fatos, evidência, evidência ausente e premissa falsa', minimo: 0.95, cats: ['fatos', 'evidencia', 'evidencia_ausente', 'premissa_falsa'] },
   { nome: 'Falsos positivos da guarda (perguntas legítimas barradas)', minimo: 1.0, cats: ['falso_positivo'] },
   { nome: 'Acerto do roteador', minimo: 0.9, cats: ['roteador'] },
+  { nome: 'Atividade recente e comparações entre repositórios (sem chutar)', minimo: 1.0, cats: ['atividade_recente', 'comparacao_sem_base'] },
   { nome: 'Fora do escopo recusado', minimo: 1.0, cats: ['fora_do_escopo'] },
 ];
 
@@ -135,6 +149,7 @@ function relatorio(resultados, meta) {
   L.push(`- **Contra:** instância de avaliação do ai-api (índice real versão ${meta.indice ?? '?'}, Jev real, OpenRouter real)`);
   L.push(`- **Modelos configurados:** rápido = \`${meta.rapidos}\`; forte = \`${meta.fortes}\``);
   L.push(`- **Casos:** ${resultados.length} (${resultados.filter((r) => r.ok).length} passaram, ${resultados.filter((r) => !r.ok).length} falharam)`);
+  if (meta.repeat > 1) L.push(`- **Repetição:** cada caso perguntado ${meta.repeat} vezes; falha de segurança em qualquer tentativa reprova; a taxa mínima de acerto vale para as demais. "Taxa mínima" é o limite inferior do intervalo de Wilson de 95%.`);
   L.push(`- **Verificação:** só determinística (verificacoes.mjs, 13 testes). O juiz do Jev ainda não entrou, então "passou" quer dizer que as regras objetivas foram cumpridas, não que a resposta é ótima.`, '');
 
   L.push('## Resultado por categoria', '', '| Categoria | Passou | % |', '|---|---|---|');
@@ -174,6 +189,13 @@ function relatorio(resultados, meta) {
     `- Confiança mediana: ${conf.length ? quant(conf, 0.5).toFixed(2) : '-'}; abaixo de 0,6: ${conf.filter((c) => c < 0.6).length} de ${conf.length}`,
     `- Recusas pelo roteador: ${chatRes.filter((r) => r.recusa).length}; retracts da guarda de saída: ${chatRes.filter((r) => r.retract).length}`);
 
+  const instaveis = resultados.filter((r) => r.instavel);
+  if (meta.repeat > 1) {
+    L.push('', `## Casos instáveis (${instaveis.length})`, '');
+    if (!instaveis.length) L.push('Nenhum: todo caso passou sempre ou falhou sempre.');
+    for (const r of instaveis) L.push(`- **${r.id}**: acerto ${Math.round(r.taxa * 100)}% em ${r.tentativas} tentativas (taxa mínima ${Math.round(r.taxaMinima * 100)}%)${r.seguranca ? ' · **falha de segurança**' : ''}`);
+  }
+
   const falhas = resultados.filter((r) => !r.ok);
   L.push('', `## Falhas (${falhas.length})`, '');
   if (!falhas.length) L.push('Nenhuma.');
@@ -185,21 +207,21 @@ function relatorio(resultados, meta) {
 
   L.push('## Todos os casos', '', '| Caso | OK | Jev | Modelo | ms | Resposta (início) |', '|---|---|---|---|---|---|');
   for (const r of resultados) {
-    L.push(`| ${r.id} | ${r.ok ? 'ok' : '**FALHOU**'} | ${r.categoriaJev ?? '-'} | ${r.modelo ? r.modelo.replace(/^[^/]+\//, '') : '-'} | ${r.ms} | ${(r.texto || '').replace(/[|\n\r]+/g, ' ').slice(0, 90)} |`);
+    L.push(`| ${r.id} | ${r.ok ? 'ok' : '**FALHOU**'}${r.tentativas ? ` (${Math.round(r.taxa * 100)}% de ${r.tentativas})` : ''} | ${r.categoriaJev ?? '-'} | ${r.modelo ? r.modelo.replace(/^[^/]+\//, '') : '-'} | ${r.ms} | ${(r.texto || '').replace(/[|\n\r]+/g, ' ').slice(0, 90)} |`);
   }
   return L.join('\n') + '\n';
 }
 
 async function main() {
   const casos = JSON.parse(await readFile(resolve(here, 'casos.json'), 'utf8')).filter((c) => !args.only || c.categoria === args.only);
-  console.log(`Bateria "${LABEL}": ${casos.length} casos contra ${BASE} (concorrência ${CONCURRENCY})`);
+  console.log(`Bateria "${LABEL}": ${casos.length} casos contra ${BASE} (concorrência ${CONCURRENCY}${REPEAT > 1 ? `, ${REPEAT} tentativas por caso` : ''})`);
   const health = await fetch(`${BASE}/health`).then((r) => r.ok).catch(() => false);
   if (!health) throw new Error(`A instância de avaliação não responde em ${BASE}. Suba com evals/eval-instance.sh e abra o túnel SSH.`);
 
   const t0 = Date.now();
   const resultados = await pool(casos, CONCURRENCY, runCase);
   const quando = new Date().toISOString();
-  const meta = { label: LABEL, quando, rapidos: args.rapidos ?? '?', fortes: args.fortes ?? '?', indice: args.indice, duracaoS: Math.round((Date.now() - t0) / 1000) };
+  const meta = { label: LABEL, repeat: REPEAT, quando, rapidos: args.rapidos ?? '?', fortes: args.fortes ?? '?', indice: args.indice, duracaoS: Math.round((Date.now() - t0) / 1000) };
   const dir = resolve(here, 'relatorios');
   await mkdir(dir, { recursive: true });
   const base = resolve(dir, `${quando.slice(0, 10)}-${LABEL}`);

@@ -144,4 +144,20 @@ class RepoTest {
 
         assertThat(hits).extracting(h -> h.chunk().id()).containsExactlyInAnyOrder("c1", "c2"); // o de inglês não-neutro sai
     }
+
+    @org.junit.jupiter.api.Test
+    void dossie_do_repositorio_vira_trechos_nos_dois_idiomas_com_o_nome_no_titulo() {
+        String content = "# Informações do repositório / Repository facts\n\nRepositório / Repository: dono/projeto\n"
+                + "Último commit / Latest commit: 2026-10-04 (UTC), commit abc1234\n\n## Commits recentes / Recent commits\n- 2026-10-04 · abc1234 · feat: x\n";
+
+        var chunks = RepoChunker.chunk("dono/projeto", "a".repeat(40), RepoChunker.FACTS_FILE, content);
+
+        assertThat(chunks).extracting(Chunk::lang).containsExactlyInAnyOrder("pt", "en");
+        assertThat(chunks).allSatisfy(c -> {
+            assertThat(c.title()).contains("projeto").doesNotContain("README");
+            assertThat(c.url()).isEqualTo("https://github.com/dono/projeto/commits");
+            assertThat(c.body()).contains("Commits recentes");
+        });
+        assertThat(chunks).extracting(Chunk::id).doesNotHaveDuplicates();
+    }
 }
