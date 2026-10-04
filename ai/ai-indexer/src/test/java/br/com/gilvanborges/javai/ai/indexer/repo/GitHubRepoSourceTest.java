@@ -214,6 +214,95 @@ class GitHubRepoSourceTest {
         assertThat(facts.lines().filter(l -> l.startsWith("- ")).count()).isEqualTo(2);
     }
 
+    @Test
+    void mapa_de_commits_vai_ate_150_e_o_dossie_continua_so_com_os_10_mais_recentes() throws Exception {
+        var messages = new java.util.ArrayList<String>();
+        for (int i = 1; i <= 160; i++) {
+            messages.add("commit numero " + i);
+        }
+        createRepoWithCommits("dono", "longo", messages);
+
+        var read = source().read("dono/longo");
+
+        assertThat(read.commits()).hasSize(GitHubRepoSource.COMMIT_MAP_DEPTH);
+        // Do mais novo para o mais antigo, com o hash curto de 7 caracteres e a primeira linha da mensagem.
+        assertThat(read.commits().getFirst().subject()).isEqualTo("commit numero 160");
+        assertThat(read.commits().getLast().subject()).isEqualTo("commit numero 11");
+        assertThat(read.commits()).allSatisfy(c -> assertThat(c.sha()).matches("[0-9a-f]{7}"));
+        assertThat(read.commits().getFirst().at()).isAfter(java.time.Instant.parse("2020-01-01T00:00:00Z"));
+        // O dossiê não mudou: continua com COMMIT_HISTORY linhas de commit e o mais recente primeiro.
+        String facts = read.files().stream().filter(f -> f.path().equals("REPO_FACTS.md")).findFirst().orElseThrow().content();
+        assertThat(facts.lines().filter(l -> l.startsWith("- ")).count()).isEqualTo(GitHubRepoSource.COMMIT_HISTORY);
+        assertThat(facts).contains("commit numero 160", "commit numero 151").doesNotContain("commit numero 150");
+        assertThat(RepoActivity.from(read)).hasValueSatisfying(e -> assertThat(e.message()).isEqualTo("commit numero 160"));
+    }
+
+    @Test
+    void assunto_do_mapa_e_a_primeira_linha_com_no_maximo_100_caracteres_e_sem_autor() throws Exception {
+        String longo = "feat: " + "x".repeat(200);
+        createRepoWithCommits("dono", "assunto", List.of("inicial\n\ncorpo que nao entra", longo));
+
+        var read = source().read("dono/assunto");
+
+        assertThat(read.commits()).extracting(RepoSource.CommitRef::subject).hasSize(2);
+        assertThat(read.commits().get(0).subject()).hasSize(100).startsWith("feat: xxx").endsWith("…");
+        assertThat(read.commits().get(1).subject()).isEqualTo("inicial");
+        // Nem o nome nem o e-mail do autor (t, t@example.com) aparecem em nenhum campo do commit.
+        assertThat(read.commits().toString()).doesNotContain("example.com");
+    }
+
+    @Test
+    void mensagem_com_segredo_em_qualquer_commit_do_mapa_omite_todas_as_mensagens_do_repositorio() throws Exception {
+        var messages = new java.util.ArrayList<String>();
+        messages.add("chore: String password = \"SenhaCommitada99\";");
+        for (int i = 1; i <= 30; i++) {
+            messages.add("limpo " + i); // o commit com segredo fica fora dos 10 do dossiê, mas dentro dos 150 do mapa
+        }
+        createRepoWithCommits("dono", "vazou-fundo", messages);
+
+        var read = source().read("dono/vazou-fundo");
+
+        assertThat(read.commits()).hasSize(31);
+        assertThat(read.commits()).allSatisfy(c -> assertThat(c.subject()).isEqualTo(RepoSource.CommitRef.OMITTED));
+        assertThat(read.commits().toString()).doesNotContain("SenhaCommitada99", "password");
+    }
+
+    @Test
+    void mensagem_com_segredo_no_dossie_omite_as_mensagens_do_mapa() throws Exception {
+        createRepoWithCommits("dono", "vazou-2", List.of("inicial", "chore: String password = \"SenhaCommitada99\";"));
+
+        var read = source().read("dono/vazou-2");
+
+        assertThat(read.commits()).hasSize(2);
+        assertThat(read.commits()).allSatisfy(c -> assertThat(c.subject()).isEqualTo("(mensagem omitida)"));
+    }
+
+    @Test
+    void repositorio_privado_fork_vazio_ou_com_erro_nao_gera_commit_no_mapa() throws Exception {
+        createRepoWithCommits("dono", "privado", List.of("segredo de negocio"));
+        metadataJson = meta(true, false, 100, "main");
+        assertThat(source().read("dono/privado").commits()).isEmpty();
+
+        metadataJson = meta(false, true, 100, "main");
+        assertThat(source().read("dono/privado").commits()).isEmpty();
+
+        metadataStatus = 404;
+        assertThat(source().read("dono/privado").commits()).isEmpty();
+
+        metadataStatus = 500;
+        metadataJson = "{}";
+        assertThat(source().read("dono/privado").commits()).isEmpty();
+
+        Path bare = work.resolve("origem").resolve("dono").resolve("vazio.git");
+        Files.createDirectories(bare);
+        try (Git ignored = Git.init().setDirectory(bare.toFile()).setBare(true).setInitialBranch("main").call()) {
+            assertThat(bare).exists();
+        }
+        metadataStatus = 200;
+        metadataJson = meta(false, false, 100, "main");
+        assertThat(source().read("dono/vazio").commits()).isEmpty();
+    }
+
     // --- helpers -------------------------------------------------------------------------------------------
 
     private GitHubRepoSource source() {

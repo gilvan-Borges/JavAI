@@ -194,6 +194,7 @@ public class IndexerService {
             try {
                 store.saveChunks(versionId, built.chunks(), built.embeddings());
                 store.saveEvidence(versionId, built.evidence());
+                store.saveCommits(versionId, built.commits());
                 store.saveStats(versionId, built.report());
                 store.activate(versionId);
             } catch (RuntimeException e) {

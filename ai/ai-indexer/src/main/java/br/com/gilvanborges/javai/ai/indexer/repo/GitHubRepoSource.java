@@ -46,8 +46,10 @@ public class GitHubRepoSource implements RepoSource {
     private static final Logger LOG = LoggerFactory.getLogger(GitHubRepoSource.class);
     private static final Pattern FULL_NAME = Pattern.compile("^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$");
     private static final int MAX_FILES = 600;
-    /** Quantos commits entram no dossiê. O clone raso passa a ter essa profundidade, então não há chamada extra à API do GitHub. */
+    /** Quantos commits entram no dossiê (o REPO_FACTS.md). Não muda com o mapa de commits. */
     static final int COMMIT_HISTORY = 10;
+    /** Quantos commits entram no mapa de commits (spec 09). O clone raso tem essa profundidade, então não há chamada extra à API do GitHub. */
+    static final int COMMIT_MAP_DEPTH = 150;
     private static final int MAX_COMMIT_MESSAGE = 100;
 
     private final IndexerProperties properties;
@@ -155,7 +157,7 @@ public class GitHubRepoSource implements RepoSource {
             try (Git git = Git.cloneRepository()
                     .setURI(url)
                     .setDirectory(dir.toFile())
-                    .setDepth(COMMIT_HISTORY)
+                    .setDepth(COMMIT_MAP_DEPTH)
                     .setBranch("refs/heads/" + branch)
                     .setCloneSubmodules(false)
                     .setTimeout(120)
@@ -167,20 +169,44 @@ public class GitHubRepoSource implements RepoSource {
                 }
                 String sha = headId.getName();
                 var commits = new ArrayList<org.eclipse.jgit.revwalk.RevCommit>();
-                git.log().setMaxCount(COMMIT_HISTORY).call().forEach(commits::add);
-                String facts = facts(fullName, meta, commits, true);
+                git.log().setMaxCount(COMMIT_MAP_DEPTH).call().forEach(commits::add);
+                // O dossiê continua com os COMMIT_HISTORY mais recentes, como antes de existir o mapa de commits.
+                var recent = commits.subList(0, Math.min(COMMIT_HISTORY, commits.size()));
+                String facts = facts(fullName, meta, recent, true);
+                boolean withMessages = true;
                 if (SecretScanner.firstFinding(facts).isPresent()) {
                     // Uma mensagem de commit com algo parecido com segredo não derruba o dossiê: ele sai só com datas e hashes.
-                    facts = facts(fullName, meta, commits, false);
+                    facts = facts(fullName, meta, recent, false);
+                    withMessages = false;
                 }
-                return collect(fullName, sha, dir, facts);
+                return collect(fullName, sha, dir, facts, commitMap(commits, withMessages));
             }
         } finally {
             deleteRecursively(dir);
         }
     }
 
-    private RepoRead collect(String fullName, String sha, Path root, String facts) throws IOException {
+    /**
+     * Os commits do mapa: hash curto, instante e primeira linha da mensagem. Se o dossiê já omitiu as mensagens, ou se
+     * qualquer uma das mensagens do mapa (que vai além das do dossiê) parece segredo, nenhuma mensagem sai deste repositório.
+     */
+    static List<RepoSource.CommitRef> commitMap(List<org.eclipse.jgit.revwalk.RevCommit> commits, boolean withMessages) {
+        boolean show = withMessages && commits.stream().noneMatch(c -> SecretScanner.firstFinding(subject(c)).isPresent());
+        var out = new ArrayList<RepoSource.CommitRef>(commits.size());
+        for (var commit : commits) {
+            out.add(new RepoSource.CommitRef(commit.getName().substring(0, 7), commit.getCommitterIdent().getWhenAsInstant(),
+                    show ? subject(commit) : RepoSource.CommitRef.OMITTED));
+        }
+        return out;
+    }
+
+    /** A primeira linha da mensagem, sem caracteres de controle e com no máximo 100 caracteres (o autor nunca entra). */
+    private static String subject(org.eclipse.jgit.revwalk.RevCommit commit) {
+        String text = commit.getShortMessage().replaceAll("\\p{Cntrl}", " ").strip();
+        return text.length() > MAX_COMMIT_MESSAGE ? text.substring(0, MAX_COMMIT_MESSAGE - 1).strip() + "…" : text;
+    }
+
+    private RepoRead collect(String fullName, String sha, Path root, String facts, List<RepoSource.CommitRef> commits) throws IOException {
         var files = new ArrayList<RepoFile>();
         var notes = new ArrayList<String>();
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
@@ -218,7 +244,7 @@ public class GitHubRepoSource implements RepoSource {
             files.add(new RepoFile(RepoActivity.FACTS_FILE, facts));
         }
         files.sort(Comparator.comparing(RepoFile::path));
-        return new RepoRead(fullName, sha, files, null, notes);
+        return new RepoRead(fullName, sha, files, null, notes, commits);
     }
 
     /**

@@ -41,8 +41,11 @@ public final class IndexBuilder {
      * @param embeddings um vetor por trecho na mesma ordem, ou {@code null} se o modelo não estava disponível
      *                   (a busca segue só com BM25)
      * @param report     contagens e motivos; nunca conteúdo de arquivo nem valor de segredo
+     * @param commits    o histórico recente por repositório lido (spec 09); repositório pulado (privado, fork, vazio ou com
+     *                   erro) não aparece aqui
      */
-    public record Built(List<Chunk> chunks, List<float[]> embeddings, List<Evidence> evidence, Map<String, Object> report) {
+    public record Built(List<Chunk> chunks, List<float[]> embeddings, List<Evidence> evidence, Map<String, Object> report,
+                        Map<String, List<RepoSource.CommitRef>> commits) {
     }
 
     public Built build(Map<String, SnapshotData> snapshots, List<RepoSource.RepoRead> repos, Optional<Embedder> embedder) {
@@ -60,6 +63,8 @@ public final class IndexBuilder {
         var report = new LinkedHashMap<String, Object>();
         var skipped = new ArrayList<String>();
         var notes = new ArrayList<String>();
+        var commitMap = new LinkedHashMap<String, List<RepoSource.CommitRef>>();
+        int mapCommits = 0;
 
         int snapshotChunks = 0;
         for (var snapshot : snapshots.values()) {
@@ -80,6 +85,9 @@ public final class IndexBuilder {
             }
             readRepos.add(repo.fullName());
             notes.addAll(repo.notes());
+            if (!repo.commits().isEmpty() && commitMap.putIfAbsent(repo.fullName(), repo.commits()) == null) {
+                mapCommits += repo.commits().size();
+            }
             int forThisRepo = 0;
             for (var file : prioritized(repo.files())) {
                 repoFiles++;
@@ -108,6 +116,7 @@ public final class IndexBuilder {
         report.put("trechosDeRepositorios", repoChunks);
         report.put("trechosDeFontes", sourceChunks.size());
         report.put("trechosDeAtividade", activity.size());
+        report.put("commitsNoMapa", mapCommits);
         report.put("fontes", List.copyOf(sourceStatus));
         report.put("arquivosLidos", repoFiles);
         report.put("repositoriosLidos", List.copyOf(readRepos));
@@ -115,7 +124,7 @@ public final class IndexBuilder {
         report.put("avisos", List.copyOf(notes));
         report.put("evidencias", evidence.size());
         report.put("comEmbeddings", embeddings != null);
-        return new Built(List.copyOf(chunks), embeddings, List.copyOf(evidence.values()), report);
+        return new Built(List.copyOf(chunks), embeddings, List.copyOf(evidence.values()), report, Map.copyOf(commitMap));
     }
 
     /** README primeiro, depois manifestos, depois o resto: se o teto cortar, corta o que menos diz sobre o projeto. */

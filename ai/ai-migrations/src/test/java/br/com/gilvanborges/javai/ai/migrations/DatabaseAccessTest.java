@@ -323,6 +323,67 @@ class DatabaseAccessTest {
         }
     }
 
+    @Test
+    void teste22_mapa_de_commits_reader_le_so_a_versao_ativa_e_o_indexador_ve_tudo() throws SQLException {
+        try (var indexer = as(db.indexer())) {
+            long ativa = newVersion(indexer);
+            commit(indexer, ativa, "dono/ativo", "aaaaaaa", "da ativa");
+            long emConstrucao = newVersion(indexer);
+            commit(indexer, emConstrucao, "dono/novo", "bbbbbbb", "em construcao");
+            activate(indexer, ativa);
+            // O indexador enxerga as duas versões (a em construção inclusive).
+            assertThat(count(indexer, "SELECT count(*) FROM index.repo_commit")).isEqualTo(2);
+        }
+        try (var reader = as(db.reader())) {
+            assertThat(strings(reader, "SELECT subject FROM index.repo_commit")).containsExactly("da ativa");
+        }
+    }
+
+    @Test
+    void teste23_mapa_de_commits_reader_nao_escreve_e_o_indexador_nao_altera() throws SQLException {
+        long versao;
+        try (var indexer = as(db.indexer())) {
+            versao = newVersion(indexer);
+            commit(indexer, versao, "dono/ativo", "aaaaaaa", "publico");
+            activate(indexer, versao);
+            // O indexador insere e apaga, mas não altera uma linha já gravada.
+            assertSqlState(SEM_PERMISSAO, () -> update(indexer, "UPDATE index.repo_commit SET subject = 'x'"));
+            assertSqlState(SEM_PERMISSAO, () -> update(indexer, "TRUNCATE index.repo_commit"));
+        }
+        try (var reader = as(db.reader())) {
+            assertSqlState(SEM_PERMISSAO, () -> commit(reader, versao, "dono/ativo", "ccccccc", "injetado"));
+            assertSqlState(SEM_PERMISSAO, () -> update(reader, "UPDATE index.repo_commit SET subject = 'alterado'"));
+            assertSqlState(SEM_PERMISSAO, () -> update(reader, "DELETE FROM index.repo_commit"));
+        }
+    }
+
+    @Test
+    void teste24_mapa_de_commits_valida_hash_nome_do_repositorio_url_e_tamanho_e_cai_com_a_versao() throws SQLException {
+        try (var indexer = as(db.indexer())) {
+            long versao = newVersion(indexer);
+            assertSqlState(CHECK_VIOLADO, () -> commit(indexer, versao, "dono/ativo", "XYZ", "hash invalido"));
+            assertSqlState(CHECK_VIOLADO, () -> commit(indexer, versao, "dono/ativo", "abc12", "hash curto"));
+            assertSqlState(CHECK_VIOLADO, () -> commit(indexer, versao, "dono sem barra", "aaaaaaa", "repositorio invalido"));
+            assertSqlState(CHECK_VIOLADO, () -> commit(indexer, versao, "dono/ativo", "aaaaaaa", "x".repeat(201)));
+            assertSqlState(CHECK_VIOLADO, () -> update(indexer, commitSql(versao, "dono/ativo", "aaaaaaa", "ok")
+                    .replace("https://github.com", "http://github.com")));
+            commit(indexer, versao, "dono/ativo", "a".repeat(40), "x".repeat(200));
+            assertThat(count(indexer, "SELECT count(*) FROM index.repo_commit")).isEqualTo(1);
+            // Os commits caem junto com a versão (ON DELETE CASCADE): o histórico não sobrevive ao índice.
+            update(indexer, "DELETE FROM index.version WHERE id = " + versao);
+            assertThat(count(indexer, "SELECT count(*) FROM index.repo_commit")).isZero();
+        }
+    }
+
+    private static void commit(Connection c, long version, String repo, String sha, String subject) throws SQLException {
+        update(c, commitSql(version, repo, sha, subject));
+    }
+
+    private static String commitSql(long version, String repo, String sha, String subject) {
+        return "INSERT INTO index.repo_commit (version_id, repo_full_name, sha, committed_at, subject, url) VALUES ("
+                + version + ", '" + repo + "', '" + sha + "', now(), '" + subject + "', 'https://github.com/" + repo + "/commit/" + sha + "')";
+    }
+
     private static long count(Connection c, String sql) throws SQLException {
         try (var st = c.createStatement(); var rs = st.executeQuery(sql)) {
             rs.next();

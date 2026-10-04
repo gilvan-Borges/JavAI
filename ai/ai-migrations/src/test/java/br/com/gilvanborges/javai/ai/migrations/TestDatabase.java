@@ -47,7 +47,7 @@ public final class TestDatabase {
     public static void truncateAll(DatabaseSettings settings) throws SQLException {
         try (var owner = connect(settings, settings.owner()); var st = owner.createStatement()) {
             st.execute("""
-                    TRUNCATE index.version, index.chunk, index.skill_evidence, ops.index_job, ops.usage_daily,
+                    TRUNCATE index.version, index.chunk, index.skill_evidence, index.repo_commit, ops.index_job, ops.usage_daily,
                            ops.knowledge_heat, ops.knowledge_pair
                     CASCADE""");
         }

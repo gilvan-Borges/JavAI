@@ -64,6 +64,32 @@ class IndexBuilderTest {
     }
 
     @Test
+    void mapa_de_commits_so_tem_repositorio_lido_e_o_relatorio_conta_os_commits() {
+        var commits = List.of(
+                new RepoSource.CommitRef("bbbbbbb", java.time.Instant.parse("2026-10-03T14:21:00Z"), "fix: dois"),
+                new RepoSource.CommitRef("aaaaaaa", java.time.Instant.parse("2026-10-01T10:00:00Z"), "feat: um"));
+        var publico = new RepoSource.RepoRead("dono/publico", "b".repeat(40), List.of(), null, List.of(), commits);
+        var privado = RepoSource.RepoRead.skipped("dono/privado", "repositório privado");
+        var fork = RepoSource.RepoRead.skipped("dono/fork", "repositório é fork");
+
+        var built = new IndexBuilder(300).build(snapshots(), List.of(publico, privado, fork), Optional.empty());
+
+        assertThat(built.commits()).containsOnlyKeys("dono/publico");
+        assertThat(built.commits().get("dono/publico")).isEqualTo(commits);
+        assertThat(built.report()).containsEntry("commitsNoMapa", 2);
+    }
+
+    @Test
+    void repositorio_privado_nao_gera_commit_nem_no_relatorio() {
+        var privado = RepoSource.RepoRead.skipped("dono/privado", "repositório privado");
+
+        var built = new IndexBuilder(300).build(snapshots(), List.of(privado), Optional.empty());
+
+        assertThat(built.commits()).isEmpty();
+        assertThat(built.report()).containsEntry("commitsNoMapa", 0);
+    }
+
+    @Test
     void evidencias_vem_dos_arquivos_lidos_sem_repeticao() {
         var repo = repo("FightConnect2025/apiSuporte", "pom.xml", POM, "pom2/pom.xml", POM);
 

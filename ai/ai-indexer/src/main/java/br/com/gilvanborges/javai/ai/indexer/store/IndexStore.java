@@ -2,6 +2,7 @@ package br.com.gilvanborges.javai.ai.indexer.store;
 
 import br.com.gilvanborges.javai.ai.core.chunk.Chunk;
 import br.com.gilvanborges.javai.ai.core.evidence.Evidence;
+import br.com.gilvanborges.javai.ai.indexer.repo.RepoSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -35,7 +36,11 @@ public class IndexStore {
             INSERT INTO index.skill_evidence (version_id, skill, repo_full_name, path, line, detector, url)
             VALUES (?, ?, ?, ?, ?, ?, ?)""";
 
-    private static final String ACTIVATE = "SELECT index.activate_version(:version)";
+    private static final String INSERT_COMMIT = """
+            INSERT INTO index.repo_commit (version_id, repo_full_name, sha, committed_at, subject, url)
+            VALUES (?, ?, ?, ?, ?, ?)""";
+
+    private static final String ACTIVATE ="SELECT index.activate_version(:version)";
 
     private static final String MARK_FAILED =
             "UPDATE index.version SET status = 'failed', stats = CAST(:stats AS jsonb) WHERE id = :version AND status = 'building'";
@@ -91,6 +96,21 @@ public class IndexStore {
             ps.setInt(5, e.line());
             ps.setString(6, e.detector());
             ps.setString(7, e.url());
+        });
+    }
+
+    /** O mapa de commits da versão (spec 09): só hash curto, data e primeira linha da mensagem, de repositórios públicos. */
+    public void saveCommits(long versionId, Map<String, List<RepoSource.CommitRef>> commits) {
+        var rows = new java.util.ArrayList<Object[]>();
+        commits.forEach((repo, list) -> list.forEach(c -> rows.add(new Object[]{repo, c})));
+        template.batchUpdate(INSERT_COMMIT, rows, 200, (ps, row) -> {
+            var c = (RepoSource.CommitRef) row[1];
+            ps.setLong(1, versionId);
+            ps.setString(2, (String) row[0]);
+            ps.setString(3, c.sha());
+            ps.setObject(4, c.at().atOffset(java.time.ZoneOffset.UTC));
+            ps.setString(5, c.subject());
+            ps.setString(6, "https://github.com/" + row[0] + "/commit/" + c.sha());
         });
     }
 

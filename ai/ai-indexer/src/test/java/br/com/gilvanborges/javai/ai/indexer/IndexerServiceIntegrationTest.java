@@ -235,6 +235,37 @@ class IndexerServiceIntegrationTest {
         assertThat(outcome.report().get("repositoriosPulados").toString()).contains("fork");
     }
 
+    @Test
+    void o_mapa_de_commits_vai_na_mesma_versao_dos_trechos_e_o_reader_so_ve_a_ativa() throws Exception {
+        var first = service.run(IndexerService.Trigger.AGENDADO);
+
+        assertThat(first.status()).isEqualTo("succeeded");
+        assertThat(first.report()).containsEntry("commitsNoMapa", 2);
+        try (var reader = TestDatabase.connect(db, db.reader())) {
+            assertThat(strings(reader, "SELECT sha || ' ' || subject FROM index.repo_commit ORDER BY committed_at DESC"))
+                    .containsExactly("aaaaaaa feat: segundo", "1234567 feat: primeiro");
+            assertThat(strings(reader, "SELECT DISTINCT repo_full_name FROM index.repo_commit")).containsExactly("FightConnect2025/apiSuporte");
+        }
+        // A reindexação troca a versão: as linhas da antiga ficam invisíveis para o reader (e não se somam às novas).
+        assertThat(service.run(IndexerService.Trigger.AGENDADO).status()).isEqualTo("succeeded");
+        try (var reader = TestDatabase.connect(db, db.reader())) {
+            assertThat(count(reader, "SELECT count(*) FROM index.repo_commit")).isEqualTo(2);
+        }
+    }
+
+    @Test
+    void repositorio_pulado_nao_deixa_commit_no_mapa() throws Exception {
+        repos.skip = true;
+
+        var outcome = service.run(IndexerService.Trigger.AGENDADO);
+
+        assertThat(outcome.status()).isEqualTo("succeeded");
+        assertThat(outcome.report()).containsEntry("commitsNoMapa", 0);
+        try (var indexer = TestDatabase.connect(db, db.indexer())) {
+            assertThat(count(indexer, "SELECT count(*) FROM index.repo_commit")).isZero();
+        }
+    }
+
     // --- dublês ---------------------------------------------------------------------------------------------
 
     static class FakeSnapshots extends SnapshotClient {
@@ -275,9 +306,12 @@ class IndexerServiceIntegrationTest {
             if (skip) {
                 return RepoRead.skipped(fullName, "repositório é fork");
             }
-            return IndexerFixtures.repoAt(fullName, head,
+            var plain = IndexerFixtures.repoAt(fullName, head,
                     "README.md", "# apiSuporte\nMicrosserviço de tickets com RabbitMQ.",
                     "pom.xml", "<dependency><artifactId>spring-boot-starter-amqp</artifactId></dependency>");
+            return new RepoRead(plain.fullName(), plain.commitSha(), plain.files(), null, plain.notes(), List.of(
+                    new CommitRef(head.substring(0, 7), java.time.Instant.parse("2026-10-03T14:21:00Z"), "feat: segundo"),
+                    new CommitRef("1234567", java.time.Instant.parse("2026-10-01T09:00:00Z"), "feat: primeiro")));
         }
     }
 
