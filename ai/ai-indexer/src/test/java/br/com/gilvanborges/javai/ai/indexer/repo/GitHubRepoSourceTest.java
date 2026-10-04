@@ -70,7 +70,11 @@ class GitHubRepoSourceTest {
 
         assertThat(read.wasSkipped()).isFalse();
         assertThat(read.files()).extracting(RepoSource.RepoFile::path)
-                .containsExactly("README.md", "pom.xml", "src/main/java/a/Service.java");
+                .containsExactly("README.md", "REPO_FACTS.md", "pom.xml", "src/main/java/a/Service.java");
+        // O resumo do repositório responde "quando foi o último commit?", que o README não diz.
+        assertThat(read.files()).filteredOn(f -> f.path().equals("REPO_FACTS.md")).singleElement()
+                .satisfies(f -> assertThat(f.content())
+                        .contains("Latest commit").contains("dono/projeto").containsPattern("[0-9]{4}-[0-9]{2}-[0-9]{2}"));
         // Nada do que ficou de fora aparece no conteúdo lido.
         String everything = read.files().stream().map(RepoSource.RepoFile::content).collect(Collectors.joining("\n"));
         assertThat(everything).doesNotContain("senhaDeVerdade123", "sk-proj-", "SenhaCommitada99");

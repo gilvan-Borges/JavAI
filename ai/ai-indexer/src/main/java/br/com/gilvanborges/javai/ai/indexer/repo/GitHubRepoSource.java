@@ -81,7 +81,7 @@ public class GitHubRepoSource implements RepoSource {
                 return RepoRead.skipped(fullName, "repositório grande demais (" + sizeKb + " KB; limite "
                         + properties.maxRepoSizeKb() + " KB)");
             }
-            return clone(fullName, meta.path("default_branch").asString("main"));
+            return clone(fullName, meta.path("default_branch").asString("main"), meta);
         } catch (IOException | GitAPIException e) {
             LOG.warn("Falha ao ler {}: {}", fullName, e.getClass().getSimpleName());
             return RepoRead.skipped(fullName, "falha ao ler o repositório (" + e.getClass().getSimpleName() + ")");
@@ -141,7 +141,7 @@ public class GitHubRepoSource implements RepoSource {
         return json.readTree(response.body());
     }
 
-    private RepoRead clone(String fullName, String branch) throws IOException, GitAPIException {
+    private RepoRead clone(String fullName, String branch, JsonNode meta) throws IOException, GitAPIException {
         Path dir = Files.createTempDirectory("javai-repo-");
         try {
             String url = properties.githubCloneBase() + fullName + ".git";
@@ -154,14 +154,15 @@ public class GitHubRepoSource implements RepoSource {
                     .setTimeout(120)
                     .call()) {
                 String sha = git.getRepository().resolve("HEAD").getName();
-                return collect(fullName, sha, dir);
+                var head = git.log().setMaxCount(1).call().iterator().next();
+                return collect(fullName, sha, dir, facts(fullName, meta, head));
             }
         } finally {
             deleteRecursively(dir);
         }
     }
 
-    private RepoRead collect(String fullName, String sha, Path root) throws IOException {
+    private RepoRead collect(String fullName, String sha, Path root, String facts) throws IOException {
         var files = new ArrayList<RepoFile>();
         var notes = new ArrayList<String>();
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
@@ -193,8 +194,38 @@ public class GitHubRepoSource implements RepoSource {
                 return FileVisitResult.CONTINUE;
             }
         });
+        // O clone é raso e o README não diz quando o projeto mudou: sem este resumo a IA não tem como responder
+        // "quando foi o último commit?". Passa pelo mesmo SecretScanner dos demais arquivos.
+        if (SecretScanner.firstFinding(facts).isEmpty()) {
+            files.add(new RepoFile("REPO_FACTS.md", facts));
+        }
         files.sort(Comparator.comparing(RepoFile::path));
         return new RepoRead(fullName, sha, files, null, notes);
+    }
+
+    /** Resumo em texto dos fatos públicos do repositório (datas, linguagem, último commit), nos dois idiomas. */
+    static String facts(String fullName, JsonNode meta, org.eclipse.jgit.revwalk.RevCommit head) {
+        String commitDate = head.getCommitterIdent().getWhenAsInstant().atZone(java.time.ZoneOffset.UTC)
+                .toLocalDate().toString();
+        String message = head.getShortMessage();
+        var sb = new StringBuilder();
+        sb.append("# Informações do repositório / Repository facts\n\n");
+        sb.append("Repositório / Repository: ").append(fullName).append("\n");
+        sb.append("Último commit / Latest commit: ").append(commitDate).append(" (UTC), commit ")
+                .append(head.getName(), 0, 7).append("\n");
+        sb.append("Mensagem do último commit / Latest commit message: ").append(message).append("\n");
+        appendField(sb, "Último push / Last push", meta.path("pushed_at").asString(""));
+        appendField(sb, "Criado em / Created", meta.path("created_at").asString(""));
+        appendField(sb, "Linguagem principal / Main language", meta.path("language").asString(""));
+        appendField(sb, "Descrição / Description", meta.path("description").asString(""));
+        appendField(sb, "Estrelas / Stars", meta.path("stargazers_count").asString(""));
+        return sb.toString();
+    }
+
+    private static void appendField(StringBuilder sb, String label, String value) {
+        if (!value.isBlank()) {
+            sb.append(label).append(": ").append(value).append("\n");
+        }
     }
 
     private static String readText(Path file) throws IOException {
