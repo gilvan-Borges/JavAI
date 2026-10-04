@@ -206,7 +206,7 @@ public class GitHubRepoSource implements RepoSource {
         // O clone é raso e o README não diz quando o projeto mudou: sem este resumo a IA não tem como responder
         // "quando foi o último commit?". Passa pelo mesmo SecretScanner dos demais arquivos.
         if (SecretScanner.firstFinding(facts).isEmpty()) {
-            files.add(new RepoFile("REPO_FACTS.md", facts));
+            files.add(new RepoFile(RepoActivity.FACTS_FILE, facts));
         }
         files.sort(Comparator.comparing(RepoFile::path));
         return new RepoRead(fullName, sha, files, null, notes);
@@ -220,9 +220,9 @@ public class GitHubRepoSource implements RepoSource {
         var sb = new StringBuilder();
         sb.append("# Informações do repositório / Repository facts\n\n");
         sb.append("Repositório / Repository: ").append(fullName).append("\n");
-        sb.append("Último commit / Latest commit: ").append(commitDate).append(" (UTC), commit ")
+        sb.append(RepoActivity.COMMIT_LABEL).append(commitDate).append(" (UTC), commit ")
                 .append(head.getName(), 0, 7).append("\n");
-        sb.append("Mensagem do último commit / Latest commit message: ").append(message).append("\n");
+        sb.append(RepoActivity.MESSAGE_LABEL).append(message).append("\n");
         appendField(sb, "Último push / Last push", meta.path("pushed_at").asString(""));
         appendField(sb, "Criado em / Created", meta.path("created_at").asString(""));
         appendField(sb, "Linguagem principal / Main language", meta.path("language").asString(""));

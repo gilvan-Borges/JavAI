@@ -7,6 +7,7 @@ import br.com.gilvanborges.javai.ai.core.evidence.Evidence;
 import br.com.gilvanborges.javai.ai.core.evidence.SkillDetectors;
 import br.com.gilvanborges.javai.ai.core.repo.RepoChunker;
 import br.com.gilvanborges.javai.ai.core.snapshot.SnapshotData;
+import br.com.gilvanborges.javai.ai.indexer.repo.RepoActivity;
 import br.com.gilvanborges.javai.ai.indexer.repo.RepoSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,11 +98,16 @@ public final class IndexBuilder {
             }
         }
 
+        // Pergunta que atravessa os repositórios ("qual foi o último commit?") precisa de um trecho que já os compara.
+        var activity = RepoActivity.chunks(repos.stream().map(RepoActivity::from).flatMap(Optional::stream).toList());
+        chunks.addAll(activity);
+
         List<float[]> embeddings = embed(chunks, embedder, report);
 
         report.put("trechosDoSnapshot", snapshotChunks);
         report.put("trechosDeRepositorios", repoChunks);
         report.put("trechosDeFontes", sourceChunks.size());
+        report.put("trechosDeAtividade", activity.size());
         report.put("fontes", List.copyOf(sourceStatus));
         report.put("arquivosLidos", repoFiles);
         report.put("repositoriosLidos", List.copyOf(readRepos));

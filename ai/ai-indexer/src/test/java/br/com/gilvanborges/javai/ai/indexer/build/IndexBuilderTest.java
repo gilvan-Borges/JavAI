@@ -47,6 +47,23 @@ class IndexBuilderTest {
     }
 
     @Test
+    void gera_o_documento_de_atividade_que_compara_todos_os_repositorios() {
+        String older = "Último commit / Latest commit: 2026-10-01 (UTC), commit aaaaaaa\nMensagem do último commit / Latest commit message: velho\n";
+        String newer = "Último commit / Latest commit: 2026-10-04 (UTC), commit bbbbbbb\nMensagem do último commit / Latest commit message: novo\n";
+        var a = repo("dono/antigo", "README.md", "# a", "REPO_FACTS.md", older);
+        var b = repo("dono/recente", "README.md", "# b", "REPO_FACTS.md", newer);
+
+        var built = new IndexBuilder(300).build(snapshots(), List.of(a, b), Optional.empty());
+
+        var activity = built.chunks().stream().filter(c -> c.sourceRef().startsWith("github-activity:")).toList();
+        assertThat(activity).extracting(Chunk::lang).contains("pt", "en");
+        var pt = activity.stream().filter(c -> c.lang().equals("pt")).findFirst().orElseThrow();
+        assertThat(pt.body()).contains("repositório recente em 2026-10-04");
+        assertThat(built.report()).containsEntry("trechosDeAtividade", activity.size());
+        assertThat(built.chunks()).extracting(Chunk::id).doesNotHaveDuplicates();
+    }
+
+    @Test
     void evidencias_vem_dos_arquivos_lidos_sem_repeticao() {
         var repo = repo("FightConnect2025/apiSuporte", "pom.xml", POM, "pom2/pom.xml", POM);
 

@@ -71,6 +71,12 @@ class GitHubRepoSourceTest {
         assertThat(read.wasSkipped()).isFalse();
         assertThat(read.files()).extracting(RepoSource.RepoFile::path)
                 .containsExactly("README.md", "REPO_FACTS.md", "pom.xml", "src/main/java/a/Service.java");
+        // O que o resumo escreve é exatamente o que o documento de atividade sabe ler (as etiquetas são compartilhadas).
+        assertThat(RepoActivity.from(read)).hasValueSatisfying(e -> {
+            assertThat(e.fullName()).isEqualTo("dono/projeto");
+            assertThat(e.lastCommit()).isAfter(java.time.LocalDate.of(2020, 1, 1));
+            assertThat(e.message()).isEqualTo("inicial");
+        });
         // O resumo do repositório responde "quando foi o último commit?", que o README não diz.
         assertThat(read.files()).filteredOn(f -> f.path().equals("REPO_FACTS.md")).singleElement()
                 .satisfies(f -> assertThat(f.content())
