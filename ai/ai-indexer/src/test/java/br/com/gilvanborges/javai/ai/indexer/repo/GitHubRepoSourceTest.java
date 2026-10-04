@@ -161,6 +161,20 @@ class GitHubRepoSourceTest {
         assertThat(symlinkCreated || read.files().size() == 1).isTrue();
     }
 
+    @Test
+    void repositorio_vazio_e_pulado_e_nao_derruba_a_execucao() throws Exception {
+        Path bare = work.resolve("origem").resolve("dono").resolve("vazio.git");
+        Files.createDirectories(bare);
+        try (Git ignored = Git.init().setDirectory(bare.toFile()).setBare(true).setInitialBranch("main").call()) {
+            assertThat(bare).exists();
+        }
+
+        var read = source().read("dono/vazio");
+
+        assertThat(read.wasSkipped()).isTrue();
+        assertThat(read.files()).isEmpty();
+    }
+
     // --- helpers -------------------------------------------------------------------------------------------
 
     private GitHubRepoSource source() {

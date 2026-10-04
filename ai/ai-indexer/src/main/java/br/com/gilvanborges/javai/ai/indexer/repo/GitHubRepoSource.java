@@ -88,6 +88,10 @@ public class GitHubRepoSource implements RepoSource {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return RepoRead.skipped(fullName, "leitura interrompida");
+        } catch (RuntimeException e) {
+            // Um repositório com formato inesperado vira "pulado" só para ele: o índice dos demais segue.
+            LOG.warn("Erro inesperado ao ler {}: {}", fullName, e.getClass().getSimpleName());
+            return RepoRead.skipped(fullName, "erro inesperado (" + e.getClass().getSimpleName() + ")");
         }
     }
 
@@ -153,7 +157,12 @@ public class GitHubRepoSource implements RepoSource {
                     .setCloneSubmodules(false)
                     .setTimeout(120)
                     .call()) {
-                String sha = git.getRepository().resolve("HEAD").getName();
+                var headId = git.getRepository().resolve("HEAD");
+                if (headId == null) {
+                    // Repositório público recém-criado e ainda sem commit: não há o que ler, e não pode derrubar os outros.
+                    return RepoRead.skipped(fullName, "repositório vazio (sem commits)");
+                }
+                String sha = headId.getName();
                 var head = git.log().setMaxCount(1).call().iterator().next();
                 return collect(fullName, sha, dir, facts(fullName, meta, head));
             }
