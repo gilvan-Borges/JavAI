@@ -124,3 +124,22 @@ https://api.gilvanborges.com.br {
 		respond 404
 	}
 }
+
+# Controlei (outro projeto, na mesma VPS; ver o repositorio controlei, deploy/README.md). O Cloudflare Access
+# autentica antes enquanto a instancia for privada. O gateway do Controlei aplica limites por IP e a CSP; o IP real do
+# visitante (da Cloudflare) vai no X-Real-IP, que o gateway so aceita vindo da rede controlei-edge, e header_up
+# substitui qualquer valor que o cliente tenha mandado. O actuator nao e roteado pelo gateway.
+https://controlei.gilvanborges.com.br {
+	import cloudflare_tls
+	import cabecalhos
+	request_body {
+		max_size 11MB
+	}
+	reverse_proxy controlei-gateway:8080 {
+		header_up X-Real-IP {http.request.client_ip}
+		transport http {
+			dial_timeout 3s
+			response_header_timeout 90s
+		}
+	}
+}

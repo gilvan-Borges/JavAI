@@ -72,6 +72,24 @@ Agora o service chama a porta `DomainEventPublisher`; a implementação grava o 
 
 No consumidor, a chave de idempotência é **liberada se o processamento falha** (antes, uma falha transitória descartava o evento para sempre). Falha repetida: 3 retentativas e envio para `<tópico>.DLT`. A regra do alerta saiu do consumidor para `BudgetAlertService` (testável sem broker), e o total gasto agora é uma **soma no banco**, não o mês inteiro carregado em memória a cada evento.
 
+## Implantação (mesma VPS do JavAI, com a Tailscale como padrão)
+
+O Controlei roda na VPS do JavAI como um **segundo projeto Compose** (`/opt/controlei`), sem misturar o que não precisa ser compartilhado.
+
+| Decisão | Como | Por quê |
+|---|---|---|
+| Nenhuma porta publicada pelo Controlei | O Caddy do JavAI entra por uma rede externa `controlei-edge` (subnet fixa) e fala com o gateway | O Docker ignora o `ufw`: toda porta publicada fica aberta. Um único ponto de entrada, que já exige a Cloudflare e o Authenticated Origin Pulls |
+| Tailscale como caminho padrão do que é interno | SSH, deploy do CI (OIDC, `tag:ci-javai`, usuário `deploy-controlei` com comando forçado que só aceita um SHA) e Kafka UI preso ao IP da Tailscale | Nada interno precisa existir na internet pública; não há segredo da Tailscale no GitHub |
+| Usuário, chave e script próprios | `deploy-controlei` e `controlei-deploy-root`, sem tocar o `deploy` do JavAI | Privilégio mínimo: um deploy não alcança o outro projeto |
+| Tetos de memória por serviço (~1,7 GB) | `mem_limit` em todos; heap do Kafka em 384 MB | A VPS tem 7,9 GB e o JavAI já usa ~1,8 GB; o Controlei não pode derrubar vizinhos |
+| Dados em rede `internal` | Postgres, Redis (com senha) e Kafka sem rota para a internet | Só o `back` os alcança; a rede `app` tem saída apenas para o provedor de IA, quando ligado |
+| IP real atrás de dois proxies | O Caddy manda `X-Real-IP`; o gateway só o aceita vindo da subnet da rede de borda | Sem isso, todos os visitantes dividiriam um limite de requisições |
+| Instância privada por padrão | Cloudflare Access (só o e-mail do dono) + cadastro de famílias **fechado** (`REGISTRATION_ENABLED=false`) | Um app financeiro com cadastro aberto atrai contas de desconhecidos e gasta a cota de IA |
+
+O passo a passo, os segredos e o que ainda é manual (DNS, Access, credencial OIDC da Tailscale para este repositório, variáveis do GitHub) estão em `deploy/README.md` do repositório do Controlei e em `infra/README.md`, seção 6.
+
+**Estado:** os arquivos estão prontos e validados (`docker compose config`, `bash -n`), mas **nada foi executado na VPS nem no CI ainda**; as imagens nunca foram construídas. Backup do Postgres não existe (pendência).
+
 ## IA: leitura de comprovantes
 
 A mesma ideia do JavAI: o modelo escreve, o código decide.

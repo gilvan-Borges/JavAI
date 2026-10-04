@@ -209,3 +209,24 @@ O `admin-migrate` roda de novo a cada `up`: aplica migrações novas e reaplica 
 A exceção é `POSTGRES_ADMIN_PASSWORD`, do superusuário: ela só vale na primeira inicialização do banco. Para trocá-la:
 1. rode `docker compose exec postgres-admin psql -U postgres -c "\password postgres"`;
 2. depois atualize o `.env`.
+
+## 6. Controlei na mesma VPS
+
+A VPS também hospeda o **Controlei** (repositório próprio, finanças familiares), como um segundo projeto Compose em `/opt/controlei`. Os dois dividem só o que precisam dividir:
+
+| Compartilhado | Separado |
+|---|---|
+| A VPS, o Docker, a Tailscale e o **Caddy** (que ganhou o host `controlei.gilvanborges.com.br` e a rede `controlei-edge`) | Compose, `.env`, redes de dados, bancos e volumes. Nenhum contêiner de um projeto enxerga o outro, exceto o Caddy chegando ao gateway do Controlei |
+| O caminho de deploy: OIDC + Tailscale + usuário de comando forçado | O usuário (`deploy-controlei`), a chave e o script (`controlei-deploy-root`): o deploy do Controlei não toca o JavAI e vice-versa |
+
+**Tailscale é o caminho padrão para tudo que é interno:** SSH, deploy do CI e ferramentas de depuração (o Kafka UI do Controlei só existe preso ao IP da Tailscale). O Controlei não publica porta nenhuma.
+
+Para o Caddy alcançar o gateway, a rede externa precisa existir **antes** do próximo deploy do JavAI (senão o `docker compose up` falha e o rollback restaura a versão anterior):
+
+```bash
+docker network create --subnet 172.30.50.0/24 controlei-edge
+```
+
+O passo a passo completo (usuário de deploy, segredos, DNS, Access, credencial OIDC e primeiro deploy) está em [`deploy/README.md` do repositório do Controlei](https://github.com/gilvan-Borges/controlei/blob/main/deploy/README.md).
+
+Atenção à memória: a VPS tem 7,9 GB. O JavAI usa ~1,8 GB em contêineres e o Controlei tem tetos que somam ~1,7 GB. O `ai-api` já opera perto do próprio teto (507 de 512 MiB em 2026-10-04); confira `docker stats` depois de subir o Controlei.

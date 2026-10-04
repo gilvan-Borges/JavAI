@@ -37,7 +37,8 @@ services:
       - /data:uid=1000,gid=1000
       - /config:uid=1000,gid=1000
       - /tmp
-    networks: [edge, ai-edge]
+    # controlei-edge: rede externa, criada a mao (infra/README.md, secao 6), onde o Caddy alcanca o gateway do Controlei.
+    networks: [edge, ai-edge, controlei-edge]
     mem_limit: 128m
     # Sem depends_on: se o admin-api cair, o snapshot em conteudo. continua no ar.
 
@@ -269,6 +270,11 @@ networks:
   # Entre o Caddy e o ai-api, e nada mais.
   ai-edge:
     internal: true
+  # Entre o Caddy e o gateway do Controlei (outro projeto Compose, na mesma VPS), e nada mais. Externa porque o
+  # Controlei tem ciclo de deploy proprio. Subnet fixa: docker network create --subnet 172.30.50.0/24 controlei-edge
+  controlei-edge:
+    external: true
+    name: controlei-edge
 
 volumes:
   postgres-admin-data: {}
