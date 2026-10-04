@@ -18,8 +18,9 @@ import java.util.Optional;
  */
 public final class AbuseGuard {
 
-    private static final int MAX_KEYS = 20_000;
+    private static final int DEFAULT_MAX_KEYS = 20_000;
 
+    private final int maxKeys;
     private final Clock clock;
     private final Duration banFor;
     private final double banConfidence;
@@ -33,6 +34,12 @@ public final class AbuseGuard {
     }
 
     public AbuseGuard(Clock clock, Duration banFor, double banConfidence, int strikesToBan) {
+        this(clock, banFor, banConfidence, strikesToBan, DEFAULT_MAX_KEYS);
+    }
+
+    /** O teto de visitantes acompanhados é injetável para o teste de transbordo não precisar de 20 mil chaves. */
+    AbuseGuard(Clock clock, Duration banFor, double banConfidence, int strikesToBan, int maxKeys) {
+        this.maxKeys = maxKeys;
         this.clock = clock;
         this.banFor = banFor;
         this.banConfidence = banConfidence;
@@ -69,6 +76,11 @@ public final class AbuseGuard {
         }
         Instant now = clock.instant();
         evictExpired(now);
+        if (states.size() >= maxKeys && !states.containsKey(key)) {
+            // Lotado de bloqueios ativos (só acontece sob ataque em massa): não há o que despejar sem soltar alguém.
+            // Quem já está bloqueado continua; o visitante novo não ganha ficha nem strike até abrir espaço.
+            return false;
+        }
         State s = states.computeIfAbsent(key, k -> new State());
         // Os strikes valem pela mesma janela do bloqueio: depois dela, a ficha limpa.
         if (s.windowStart == null || s.windowStart.plus(banFor).isBefore(now)) {
@@ -83,20 +95,31 @@ public final class AbuseGuard {
         return false;
     }
 
+    /**
+     * Abre espaço sem nunca soltar um bloqueio ativo: primeiro descarta o que já acabou; se ainda estiver cheio, descarta
+     * quem só tem strikes (sem bloqueio), do mais antigo para o mais novo. Antes isto era um clear(), e uma enxurrada de
+     * IPs diferentes apagava justamente os bloqueios de 12 h que a defesa existe para manter.
+     */
     private void evictExpired(Instant now) {
-        if (states.size() < MAX_KEYS) {
+        if (states.size() < maxKeys) {
             return;
         }
-        for (Iterator<State> it = states.values().iterator(); it.hasNext(); ) {
-            State s = it.next();
-            boolean banEnded = s.bannedUntil == null || !s.bannedUntil.isAfter(now);
-            boolean windowEnded = s.windowStart == null || s.windowStart.plus(banFor).isBefore(now);
-            if (banEnded && windowEnded) {
-                it.remove();
+        states.values().removeIf(s -> (s.bannedUntil == null || !s.bannedUntil.isAfter(now))
+                && (s.windowStart == null || s.windowStart.plus(banFor).isBefore(now)));
+        if (states.size() < maxKeys) {
+            return;
+        }
+        var onlyStrikes = new java.util.ArrayList<Map.Entry<String, State>>();
+        for (Map.Entry<String, State> e : states.entrySet()) {
+            State s = e.getValue();
+            if (s.bannedUntil == null || !s.bannedUntil.isAfter(now)) {
+                onlyStrikes.add(e);
             }
         }
-        if (states.size() >= MAX_KEYS) {
-            states.clear();
+        onlyStrikes.sort(java.util.Comparator.comparing(e -> e.getValue().windowStart == null ? Instant.MIN : e.getValue().windowStart));
+        int toDrop = Math.max(1, onlyStrikes.size() / 2);
+        for (int i = 0; i < toDrop && i < onlyStrikes.size(); i++) {
+            states.remove(onlyStrikes.get(i).getKey());
         }
     }
 }

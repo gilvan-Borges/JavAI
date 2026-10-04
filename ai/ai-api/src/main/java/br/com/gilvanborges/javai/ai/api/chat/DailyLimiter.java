@@ -29,9 +29,14 @@ public final class DailyLimiter {
             return true;
         }
         LocalDate today = LocalDate.now(clock);
-        if (!today.equals(day) || counts.size() >= MAX_KEYS) {
-            counts.clear();
+        if (!today.equals(day)) {
+            counts.clear(); // virada do dia: é a única hora de zerar
             day = today;
+        }
+        if (counts.size() >= MAX_KEYS && !counts.containsKey(key)) {
+            // Lotado: antes isto zerava todo mundo no meio do dia. Agora quem já é conhecido continua contado e o visitante
+            // novo passa sem ficar registrado (falha aberta de propósito: o orçamento diário em dólar continua valendo).
+            return true;
         }
         int used = counts.merge(key, 1, Integer::sum);
         return used <= perDay;

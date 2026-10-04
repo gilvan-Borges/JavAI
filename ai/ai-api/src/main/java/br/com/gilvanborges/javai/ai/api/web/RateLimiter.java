@@ -12,13 +12,20 @@ import java.util.Map;
  */
 public final class RateLimiter {
 
-    private static final int MAX_KEYS = 10_000;
+    private static final int DEFAULT_MAX_KEYS = 10_000;
 
+    private final int maxKeys;
     private final int perMinute;
     private final Clock clock;
     private final Map<String, Bucket> buckets = new HashMap<>();
 
     public RateLimiter(int perMinute, Clock clock) {
+        this(perMinute, clock, DEFAULT_MAX_KEYS);
+    }
+
+    /** O teto de chaves é injetável para o teste de transbordo. */
+    RateLimiter(int perMinute, Clock clock, int maxKeys) {
+        this.maxKeys = maxKeys;
         if (perMinute < 1) {
             throw new IllegalArgumentException("O limite por minuto precisa ser positivo.");
         }
@@ -29,7 +36,7 @@ public final class RateLimiter {
     /** @return 0 se a chamada pode seguir; senão, em quantos segundos tentar de novo */
     public synchronized long tryAcquire(String key) {
         long now = clock.millis();
-        if (buckets.size() >= MAX_KEYS) {
+        if (buckets.size() >= maxKeys) {
             evictIdle(now);
         }
         Bucket bucket = buckets.computeIfAbsent(key, k -> new Bucket(perMinute, now));
@@ -45,15 +52,24 @@ public final class RateLimiter {
     private void evictIdle(long now) {
         for (Iterator<Bucket> it = buckets.values().iterator(); it.hasNext(); ) {
             Bucket b = it.next();
-            b.refill(now, perMinute);
-            if (b.tokens >= perMinute) {
+            if (projected(b, now) >= perMinute) {
                 it.remove();
             }
         }
-        // Ainda cheio (tráfego de muitos IPs diferentes): zera tudo em vez de crescer sem limite.
-        if (buckets.size() >= MAX_KEYS) {
-            buckets.clear();
+        // Ainda cheio (tráfego de muitos IPs diferentes): despeja a metade com a ficha mais cheia, em vez de zerar tudo.
+        // Esquecer um balde quase cheio quase não muda nada (ele voltaria cheio mesmo); o que não pode acontecer é devolver
+        // a ficha cheia a quem está esgotado, que é justamente quem o limite existe para segurar.
+        if (buckets.size() >= maxKeys) {
+            var byTokens = new java.util.ArrayList<Map.Entry<String, Bucket>>(buckets.entrySet());
+            byTokens.sort(java.util.Comparator.comparingDouble((Map.Entry<String, Bucket> e) -> projected(e.getValue(), now)).reversed());
+            for (int i = 0; i < Math.max(1, byTokens.size() / 2); i++) {
+                buckets.remove(byTokens.get(i).getKey());
+            }
         }
+    }
+
+    private double projected(Bucket b, long now) {
+        return Math.min(perMinute, b.tokens + (now - b.lastMillis) * perMinute / 60_000.0);
     }
 
     private static final class Bucket {

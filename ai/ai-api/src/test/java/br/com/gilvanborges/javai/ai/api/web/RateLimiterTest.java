@@ -76,4 +76,24 @@ class RateLimiterTest {
     void limite_invalido_e_recusado() {
         assertThatThrownBy(() -> new RateLimiter(0, Clock.systemUTC())).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void lotado_de_ips_diferentes_nao_zera_o_balde_de_quem_esta_martelando() {
+        var clock = new MutableClock();
+        var limiter = new RateLimiter(3, clock, 10);
+        for (int i = 0; i < 3; i++) {
+            limiter.tryAcquire("martelador"); // esgota as 3 fichas
+        }
+        assertThat(limiter.tryAcquire("martelador")).isPositive();
+
+        // Uma enxurrada de IPs diferentes enche o mapa e dispara a limpeza (cada um mexe uma vez; ficam com balde não cheio).
+        for (int i = 0; i < 40; i++) {
+            clock.millis += 1;
+            limiter.tryAcquire("visitante-" + i);
+        }
+
+        // Antes isto virava clear(): o martelador voltava com 3 fichas novas. Agora ele continua barrado.
+        clock.millis += 1;
+        assertThat(limiter.tryAcquire("martelador")).as("o balde do martelador sobreviveu à limpeza").isPositive();
+    }
 }

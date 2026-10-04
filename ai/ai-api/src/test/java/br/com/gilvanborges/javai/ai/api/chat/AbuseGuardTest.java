@@ -100,4 +100,38 @@ class AbuseGuardTest {
         }
         assertThat(guard.blockedFor("ip-1")).isEmpty();
     }
+
+    @Test
+    void lotado_de_ips_diferentes_nunca_solta_um_bloqueio_ativo() {
+        var clock = new MutableClock();
+        var guard = new AbuseGuard(clock, Duration.ofHours(12), 0.90, 3, 10);
+        assertThat(guard.recordAttack("atacante", 0.99)).isTrue();
+        assertThat(guard.blockedFor("atacante")).isPresent();
+
+        // Uma enxurrada de visitantes com 1 strike cada enche o mapa muito além do teto.
+        for (int i = 0; i < 100; i++) {
+            clock.now = clock.now.plusSeconds(1);
+            guard.recordAttack("curioso-" + i, 0.6);
+        }
+
+        // Antes isto era clear(): o atacante de 12 h saía livre. Agora o bloqueio continua de pé.
+        assertThat(guard.blockedFor("atacante")).as("o bloqueio ativo sobreviveu ao transbordo").isPresent();
+        assertThat(guard.blockedCount()).isEqualTo(1);
+    }
+
+    @Test
+    void lotado_so_de_bloqueios_ativos_o_visitante_novo_nao_derruba_ninguem() {
+        var clock = new MutableClock();
+        var guard = new AbuseGuard(clock, Duration.ofHours(12), 0.90, 3, 3);
+        for (int i = 0; i < 3; i++) {
+            assertThat(guard.recordAttack("preso-" + i, 0.99)).isTrue();
+        }
+
+        assertThat(guard.recordAttack("novo", 0.99)).as("sem espaço, o novo não entra").isFalse();
+
+        assertThat(guard.blockedCount()).isEqualTo(3);
+        for (int i = 0; i < 3; i++) {
+            assertThat(guard.blockedFor("preso-" + i)).isPresent();
+        }
+    }
 }
