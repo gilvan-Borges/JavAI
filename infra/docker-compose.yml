@@ -237,6 +237,17 @@ services:
       AIAPI_CHAT_MODELS_STRONG: ${JAVAI_MODELS_STRONG:-}
       AIAPI_CHAT_MAX_PRICE_COMPLETION: ${JAVAI_MAX_PRICE_COMPLETION:-0}
       AIAPI_CHAT_DAILY_BUDGET_USD: ${JAVAI_DAILY_BUDGET_USD:-1.00}
+      # Os padrões abaixo são os do código: ligar a variável só importa para mudar o valor em produção sem mexer em imagem.
+      AIAPI_CHAT_MAX_TOKENS: ${JAVAI_MAX_TOKENS:-300}
+      AIAPI_CHAT_REASONING_EFFORT: ${JAVAI_REASONING_EFFORT:-}
+      AIAPI_CHAT_ZDR: ${JAVAI_ZDR:-false}
+      AIAPI_CHAT_PER_MINUTE: ${JAVAI_PER_MINUTE:-3}
+      AIAPI_CHAT_PER_DAY: ${JAVAI_PER_DAY:-0}
+      AIAPI_CHAT_BAN_HOURS: ${JAVAI_BAN_HOURS:-12}
+      AIAPI_CHAT_BAN_CONFIDENCE: ${JAVAI_BAN_CONFIDENCE:-0.90}
+      AIAPI_CHAT_BAN_STRIKES: ${JAVAI_BAN_STRIKES:-3}
+      AIAPI_CHAT_JEV_TIMEOUT_MS: ${JAVAI_JEV_TIMEOUT_MS:-800}
+      AIAPI_CHAT_CORS_ORIGIN: ${JAVAI_CORS_ORIGIN:-https://gilvanborges.com.br}
     volumes:
       # O modelo é baixado e verificado pelo ai-indexer; aqui só é lido.
       - ai-models:/models:ro
