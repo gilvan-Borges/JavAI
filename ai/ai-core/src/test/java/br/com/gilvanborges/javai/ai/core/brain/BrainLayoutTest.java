@@ -153,4 +153,57 @@ class BrainLayoutTest {
         assertThat(BrainLayout.groupOf("profile", SourceKind.PROFILE)).isEqualTo(SourceKind.PROFILE.db());
         assertThat(BrainLayout.groupLabelOf("repo_readme:dono/controlei:README.md:x", SourceKind.REPO_README)).isEqualTo("controlei");
     }
+
+    @Test
+    void o_codigo_de_um_repositorio_e_um_ponto_e_cada_documento_tambem() {
+        var chunks = new ArrayList<Chunk>();
+        var vectors = new ArrayList<float[]>();
+        for (int i = 0; i < 6; i++) {
+            chunks.add(chunk("f" + i, SourceKind.REPO_FILE, "repo_file:dono/alfa:src/Arquivo" + i + ".java", "en", "Code of alfa: src/Arquivo" + i));
+            vectors.add(new float[]{1f, 0.1f * i});
+        }
+        for (int i = 0; i < 4; i++) {
+            chunks.add(chunk("d" + i, SourceKind.REPO_README, "repo_readme:dono/alfa:docs/arquitetura-geral.md:Secao " + i, "pt", "doc"));
+            vectors.add(new float[]{0f, 1f, 0.1f * i});
+        }
+        chunks.add(chunk("r1", SourceKind.REPO_README, "repo_readme:dono/alfa:README.md:Arquitetura", "pt", "readme"));
+        vectors.add(new float[]{0.5f, 0.5f, 0f});
+        chunks.add(chunk("r2", SourceKind.REPO_README, "repo_readme:dono/alfa:README.md:Testes", "pt", "readme"));
+        vectors.add(new float[]{0.4f, 0.6f, 0f});
+        chunks.add(chunk("x1", SourceKind.REPO_README, "repo_readme:dono/alfa:REPO_FACTS.md:Informações", "pt", "facts"));
+        vectors.add(new float[]{0.2f, 0.2f, 0.9f});
+
+        var nodes = BrainLayout.of(chunks, vectors);
+
+        // 6 arquivos de código = 1; 4 seções do mesmo documento = 1; o README mantém as 2 seções; o dossiê = 1.
+        assertThat(nodes).extracting(BrainLayout.Node::id).containsExactlyInAnyOrder(
+                "repo_file:dono/alfa",
+                "repo_readme:dono/alfa:docs/arquitetura-geral.md",
+                "repo_readme:dono/alfa:README.md:Arquitetura",
+                "repo_readme:dono/alfa:README.md:Testes",
+                "repo_readme:dono/alfa:REPO_FACTS.md");
+        assertThat(nodes).extracting(BrainLayout.Node::group).containsOnly("repo:dono/alfa");
+    }
+
+    @Test
+    void os_titulos_dos_pontos_sao_curtos_e_legiveis() {
+        assertThat(BrainLayout.titleOf("repo_file:dono/alfa", "x")).isEqualTo("alfa: código");
+        assertThat(BrainLayout.titleOf("repo_readme:dono/alfa:README.md:Arquitetura", "x")).isEqualTo("alfa: Arquitetura");
+        assertThat(BrainLayout.titleOf("repo_readme:dono/alfa:README.md:", "x")).isEqualTo("alfa: README");
+        assertThat(BrainLayout.titleOf("repo_readme:dono/alfa:REPO_FACTS.md", "x")).isEqualTo("alfa: commits e informações");
+        assertThat(BrainLayout.titleOf("repo_readme:dono/alfa:docs/backend-tasks/TASK-001-bootstrap.md", "x")).isEqualTo("alfa: TASK-001-bootstrap");
+        assertThat(BrainLayout.titleOf("skill:Kafka", "Habilidade Kafka")).isEqualTo("Habilidade Kafka");
+    }
+
+    @Test
+    void a_chave_do_ponto_e_estavel_e_idempotente() {
+        for (String ref : List.of("repo_file:dono/alfa:src/A.java", "repo_readme:dono/alfa:docs/x.md:Secao",
+                "repo_readme:dono/alfa:README.md:Titulo: com dois pontos", "project:javai:arquitetura", "profile", "github-activity:dono")) {
+            String id = BrainLayout.nodeIdOf(ref);
+            assertThat(BrainLayout.nodeIdOf(id)).isEqualTo(id);
+        }
+        assertThat(BrainLayout.nodeIdOf("repo_readme:dono/alfa:README.md:Titulo: com dois pontos"))
+                .isEqualTo("repo_readme:dono/alfa:README.md:Titulo: com dois pontos");
+        assertThat(BrainLayout.nodeIdOf("project:javai:arquitetura")).isEqualTo("project:javai:arquitetura");
+    }
 }

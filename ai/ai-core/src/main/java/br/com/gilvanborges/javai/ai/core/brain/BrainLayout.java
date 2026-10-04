@@ -28,6 +28,11 @@ public final class BrainLayout {
     private BrainLayout() {
     }
 
+    /** O nome do arquivo sintético com o dossiê de cada repositório (o mesmo de {@code RepoChunker}). */
+    private static final class RepoFacts {
+        static final String FILE = br.com.gilvanborges.javai.ai.core.repo.RepoChunker.FACTS_FILE;
+    }
+
     /**
      * @param id         a origem estável do trecho ({@code sourceRef}); é a chave dos contadores
      * @param group      o agrupamento (um repositório, um projeto, "profile"...), para colorir e montar as ramificações
@@ -43,11 +48,12 @@ public final class BrainLayout {
         if (embeddings != null && embeddings.size() != chunks.size()) {
             throw new IllegalArgumentException("É preciso um vetor por trecho.");
         }
-        // Uma origem pode ter vários trechos (pt e en, ou um texto longo em partes): ela vira um ponto só.
+        // Uma origem pode ter vários trechos (pt e en, ou um texto longo em partes) e um ponto agrupa várias origens
+        // (todo o código de um repositório, todas as seções de um documento): o mapa fica legível.
         var byRef = new LinkedHashMap<String, Source>();
         for (int i = 0; i < chunks.size(); i++) {
             Chunk c = chunks.get(i);
-            Source s = byRef.computeIfAbsent(c.sourceRef(), ref -> new Source(c));
+            Source s = byRef.computeIfAbsent(nodeIdOf(c.sourceRef()), ref -> new Source(ref, c));
             s.add(c, embeddings == null ? null : embeddings.get(i));
         }
         var sources = new ArrayList<>(byRef.values());
@@ -67,9 +73,56 @@ public final class BrainLayout {
         var nodes = new ArrayList<Node>();
         for (int i = 0; i < sources.size(); i++) {
             Source s = sources.get(i);
-            nodes.add(new Node(s.ref, s.title, s.kind, groupOf(s.ref, s.kind), groupLabelOf(s.ref, s.kind), xy[i][0], xy[i][1]));
+            nodes.add(new Node(s.ref, titleOf(s.ref, s.title), s.kind, groupOf(s.ref, s.kind), groupLabelOf(s.ref, s.kind), xy[i][0], xy[i][1]));
         }
         return List.copyOf(nodes);
+    }
+
+    /**
+     * O ponto do mapa a que uma origem pertence. O código de um repositório inteiro é UM ponto; um documento (que não seja o
+     * README) é um ponto, e não uma seção por ponto; o README mantém uma seção por ponto, porque é onde estão as
+     * ramificações ("arquitetura", "testes", "deploy"). Os contadores usam esta mesma chave, então uma resposta que pega
+     * três seções do mesmo documento conta UMA vez para ele.
+     */
+    public static String nodeIdOf(String sourceRef) {
+        if (sourceRef.startsWith("repo_file:")) {
+            String[] p = sourceRef.split(":", 3);
+            return p.length >= 2 ? "repo_file:" + p[1] : sourceRef;
+        }
+        if (sourceRef.startsWith("repo_readme:")) {
+            String[] p = sourceRef.split(":", 4);
+            if (p.length < 3 || p[2].equals("README.md")) {
+                return sourceRef;
+            }
+            return "repo_readme:" + p[1] + ":" + p[2];
+        }
+        return sourceRef;
+    }
+
+    /** O nome legível do ponto: "controlei: Arquitetura", "controlei: código", "controlei: commits e informações". */
+    static String titleOf(String nodeId, String chunkTitle) {
+        if (nodeId.startsWith("repo_file:")) {
+            return repoName(nodeId.substring("repo_file:".length())) + ": código";
+        }
+        if (nodeId.startsWith("repo_readme:")) {
+            String[] p = nodeId.split(":", 4);
+            if (p.length >= 3) {
+                String repo = repoName(p[1]);
+                if (p[2].equals("README.md")) {
+                    return repo + ": " + (p.length > 3 && !p[3].isBlank() ? p[3] : "README");
+                }
+                if (p[2].equals(RepoFacts.FILE)) {
+                    return repo + ": commits e informações";
+                }
+                String file = p[2].substring(p[2].lastIndexOf('/') + 1);
+                return repo + ": " + file.replaceAll("\\.md$", "");
+            }
+        }
+        return chunkTitle;
+    }
+
+    private static String repoName(String fullName) {
+        return fullName.substring(fullName.indexOf('/') + 1);
     }
 
     /** O grupo de uma origem: o repositório, o projeto ou, para o resto, o tipo do conteúdo. */
@@ -252,8 +305,8 @@ public final class BrainLayout {
         double[] sum;
         int count;
 
-        Source(Chunk first) {
-            this.ref = first.sourceRef();
+        Source(String ref, Chunk first) {
+            this.ref = ref;
             this.kind = first.kind();
         }
 

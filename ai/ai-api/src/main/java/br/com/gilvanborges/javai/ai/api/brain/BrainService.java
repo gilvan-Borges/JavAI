@@ -1,11 +1,13 @@
 package br.com.gilvanborges.javai.ai.api.brain;
 
+import br.com.gilvanborges.javai.ai.api.chat.ActivityIntent;
 import br.com.gilvanborges.javai.ai.api.index.ActiveIndex;
 import br.com.gilvanborges.javai.ai.api.index.IndexHolder;
 import br.com.gilvanborges.javai.ai.api.index.QueryEmbedder;
 import br.com.gilvanborges.javai.ai.api.usage.HeatStore;
 import br.com.gilvanborges.javai.ai.api.usage.UsageStore;
 import br.com.gilvanborges.javai.ai.core.brain.BrainLayout;
+import br.com.gilvanborges.javai.ai.core.chunk.SourceKind;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -182,7 +184,13 @@ public class BrainService {
         }
         float[] vector = active.hasVectors() ? embedder.embed(question, active.embeddingModel()).orElse(null) : null;
         var refs = new LinkedHashSet<String>();
-        active.search(question, vector, lang, 5).forEach(h -> refs.add(h.chunk().sourceRef()));
+        // O que o chat faria: pergunta de atividade recente recebe o documento que compara os repositórios na frente.
+        if (ActivityIntent.matches(question)) {
+            active.chunks().stream()
+                    .filter(c -> c.kind() == SourceKind.GITHUB_PROFILE && c.sourceRef().startsWith("github-activity:") && c.lang().equals(lang))
+                    .forEach(c -> refs.add(BrainLayout.nodeIdOf(c.sourceRef())));
+        }
+        active.search(question, vector, lang, 5).forEach(h -> refs.add(BrainLayout.nodeIdOf(h.chunk().sourceRef())));
         var picked = new ArrayList<Map<String, Object>>();
         int rank = 1;
         for (String ref : refs) {

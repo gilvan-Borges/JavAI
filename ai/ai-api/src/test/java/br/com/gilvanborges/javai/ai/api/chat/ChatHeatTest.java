@@ -5,6 +5,7 @@ import br.com.gilvanborges.javai.ai.api.ApiFixtures;
 import br.com.gilvanborges.javai.ai.api.index.QueryEmbedder;
 import br.com.gilvanborges.javai.ai.api.usage.HeatStore;
 import br.com.gilvanborges.javai.ai.api.usage.UsageRecorder;
+import br.com.gilvanborges.javai.ai.core.brain.BrainLayout;
 import br.com.gilvanborges.javai.ai.core.chunk.Chunk;
 import org.junit.jupiter.api.Test;
 
@@ -101,7 +102,8 @@ class ChatHeatTest {
     }
 
     private static Set<String> hitRefs(String q) {
-        return ApiFixtures.index().search(q, null, "pt", 5).stream().map(h -> h.chunk().sourceRef()).collect(Collectors.toSet());
+        return ApiFixtures.index().search(q, null, "pt", 5).stream()
+                .map(h -> BrainLayout.nodeIdOf(h.chunk().sourceRef())).collect(Collectors.toSet());
     }
 
     @Test
@@ -115,7 +117,7 @@ class ChatHeatTest {
         assertThat(heat.allRefs()).isNotEmpty().doesNotHaveDuplicates()
                 .allSatisfy(ref -> assertThat(ref).doesNotContainIgnoringCase(SEGREDO));
         // Tudo o que foi gravado existe no índice público: não há como entrar texto livre.
-        var known = ApiFixtures.index().chunks().stream().map(Chunk::sourceRef).collect(Collectors.toSet());
+        var known = ApiFixtures.index().chunks().stream().map(c -> BrainLayout.nodeIdOf(c.sourceRef())).collect(Collectors.toSet());
         assertThat(known).containsAll(heat.allRefs());
         assertThat(heat.allRefs()).containsExactlyInAnyOrderElementsOf(hitRefs(q));
     }
@@ -159,6 +161,21 @@ class ChatHeatTest {
 
         assertThat(heat.calls).hasSize(2);
         assertThat(heat.calls.get(1).refs()).containsExactlyElementsOf(heat.calls.get(0).refs());
+    }
+
+    @Test
+    void varias_secoes_do_mesmo_ponto_contam_uma_vez_so() {
+        var hits = List.of(
+                new br.com.gilvanborges.javai.ai.core.search.HybridSearcher.Hit(chunkRef("repo_readme:dono/x:docs/a.md:S1"), 1.0),
+                new br.com.gilvanborges.javai.ai.core.search.HybridSearcher.Hit(chunkRef("repo_readme:dono/x:docs/a.md:S2"), 0.9),
+                new br.com.gilvanborges.javai.ai.core.search.HybridSearcher.Hit(chunkRef("repo_file:dono/x:src/A.java"), 0.8),
+                new br.com.gilvanborges.javai.ai.core.search.HybridSearcher.Hit(chunkRef("repo_file:dono/x:src/B.java"), 0.7));
+
+        assertThat(ChatService.refsOf(hits)).containsExactly("repo_readme:dono/x:docs/a.md", "repo_file:dono/x");
+    }
+
+    private static Chunk chunkRef(String ref) {
+        return new Chunk(ref + "#0", br.com.gilvanborges.javai.ai.core.chunk.SourceKind.REPO_README, ref, "pt", "t", "b", "https://github.com/dono/x");
     }
 
     @Test

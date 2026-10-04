@@ -236,6 +236,20 @@ class BrainServiceTest {
     }
 
     @Test
+    void a_sonda_de_atividade_recente_mostra_o_documento_que_compara_os_repositorios_na_frente() {
+        var activity = new br.com.gilvanborges.javai.ai.core.chunk.Chunk("pt:act", br.com.gilvanborges.javai.ai.core.chunk.SourceKind.GITHUB_PROFILE,
+                "github-activity:dono", "pt", "Atividade recente", "O último commit foi no controlei", "https://github.com/dono");
+        var chunks = new java.util.ArrayList<>(active.chunks());
+        chunks.add(activity);
+        var index = new ActiveIndex(1, "m", chunks, null, List.of(), new br.com.gilvanborges.javai.ai.core.search.ScalarVectorOps());
+
+        @SuppressWarnings("unchecked")
+        var nodes = (List<Map<String, Object>>) service(index).probe("qual foi o último commit dele?", "pt").orElseThrow().get("nodes");
+
+        assertThat(nodes.get(0)).containsEntry("id", "github-activity:dono").containsEntry("rank", 1);
+    }
+
+    @Test
     void o_corpo_so_tem_conteudo_publico_do_indice_e_numeros() {
         heat.node(TODAY.minusDays(2), ref("project:"), 4);
 

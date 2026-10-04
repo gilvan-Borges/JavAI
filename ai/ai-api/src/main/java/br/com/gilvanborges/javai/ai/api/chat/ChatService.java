@@ -7,6 +7,7 @@ import br.com.gilvanborges.javai.ai.api.usage.HeatStore;
 import br.com.gilvanborges.javai.ai.api.usage.LatencyStats;
 import br.com.gilvanborges.javai.ai.api.usage.UsageRecorder;
 import br.com.gilvanborges.javai.ai.api.web.RateLimiter;
+import br.com.gilvanborges.javai.ai.core.brain.BrainLayout;
 import br.com.gilvanborges.javai.ai.core.chunk.Chunk;
 import br.com.gilvanborges.javai.ai.core.chunk.SourceKind;
 import br.com.gilvanborges.javai.ai.core.search.HybridSearcher;
@@ -298,8 +299,9 @@ public class ChatService {
         }
     }
 
+    /** Os pontos do mapa que a busca escolheu (uma resposta conta uma vez para cada ponto, mesmo pegando várias seções dele). */
     static List<String> refsOf(List<HybridSearcher.Hit> hits) {
-        return hits.stream().map(h -> h.chunk().sourceRef()).distinct().toList();
+        return hits.stream().map(h -> BrainLayout.nodeIdOf(h.chunk().sourceRef())).distinct().toList();
     }
 
     /** Reapresenta uma resposta do cache com os mesmos eventos de uma nova; só o turn é assinado na hora. */
