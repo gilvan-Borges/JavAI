@@ -88,7 +88,7 @@ O Controlei roda na VPS do JavAI como um **segundo projeto Compose** (`/opt/cont
 
 O passo a passo, os segredos e o que ainda é manual (DNS, Access, credencial OIDC da Tailscale para este repositório, variáveis do GitHub) estão em `deploy/README.md` do repositório do Controlei e em `infra/README.md`, seção 6.
 
-**Estado:** os arquivos estão prontos e validados (`docker compose config`, `bash -n`), mas **nada foi executado na VPS nem no CI ainda**; as imagens nunca foram construídas. Backup do Postgres não existe (pendência).
+**Estado (2026-10-04):** em produção na VPS, atrás do Cloudflare Access, em `controlei.gilvanborges.com.br`. Foi executado e verificado: construção e varredura das imagens no CI (o Trivy barrou três vezes, por dependências do back, pela base antiga do nginx e por um pacote; todas corrigidas), as migrations V1 a V23 em Postgres real, o stack com os seis serviços saudáveis (~800 MB), a rota no Caddy sem afetar os hosts do JavAI e um **deploy automático completo pelo CI** (OIDC, Tailscale, SSH com comando forçado, script com rollback). O primeiro start achou um erro de nginx que o `nginx -t` teria pego; agora ele roda no CI. **Ainda pendentes:** backup do Postgres, o relay do outbox e o consumidor contra um Kafka com carga real (só vimos o broker subir e o back ficar saudável), e abrir ao público (hoje só o dono entra).
 
 ## IA: leitura de comprovantes
 

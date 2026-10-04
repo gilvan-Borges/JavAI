@@ -227,6 +227,8 @@ Para o Caddy alcançar o gateway, a rede externa precisa existir **antes** do pr
 docker network create --subnet 172.30.50.0/24 controlei-edge
 ```
 
+**Estado (2026-10-04):** aplicado. A rede `controlei-edge` existe, o Caddy ganhou o host novo (arquivos idênticos aos deste repositório, instalados com backup e validação em contêiner descartável) e o `sshd` passou a listar `deploy-controlei` em `AllowUsers` (`/etc/ssh/sshd_config.d/10-javai.conf`). Se você reconstruir a VPS, repita essa linha: sem ela o CI do Controlei recebe `Permission denied (publickey)`.
+
 O passo a passo completo (usuário de deploy, segredos, DNS, Access, credencial OIDC e primeiro deploy) está em [`deploy/README.md` do repositório do Controlei](https://github.com/gilvan-Borges/controlei/blob/main/deploy/README.md).
 
 Atenção à memória: a VPS tem 7,9 GB. O JavAI usa ~1,8 GB em contêineres e o Controlei tem tetos que somam ~1,7 GB. O `ai-api` já opera perto do próprio teto (507 de 512 MiB em 2026-10-04); confira `docker stats` depois de subir o Controlei.
