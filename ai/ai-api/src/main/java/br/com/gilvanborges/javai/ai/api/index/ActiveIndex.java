@@ -1,5 +1,6 @@
 package br.com.gilvanborges.javai.ai.api.index;
 
+import br.com.gilvanborges.javai.ai.core.brain.BrainLayout;
 import br.com.gilvanborges.javai.ai.core.chunk.Chunk;
 import br.com.gilvanborges.javai.ai.core.chunk.SourceKind;
 import br.com.gilvanborges.javai.ai.core.evidence.Evidence;
@@ -21,6 +22,8 @@ public final class ActiveIndex {
     private final List<Chunk> chunks;
     private final List<Evidence> evidence;
     private final HybridSearcher searcher;
+    private final List<float[]> embeddings;
+    private volatile List<BrainLayout.Node> brainLayout;
 
     /** @param embeddings um vetor por trecho, na mesma ordem; {@code null} se algum faltar (só BM25). */
     public ActiveIndex(long versionId, String embeddingModel, List<Chunk> chunks, List<float[]> embeddings,
@@ -30,6 +33,7 @@ public final class ActiveIndex {
         this.chunks = List.copyOf(chunks);
         this.evidence = List.copyOf(evidence);
         this.searcher = new HybridSearcher(this.chunks, embeddings, ops);
+        this.embeddings = embeddings;
     }
 
     public long versionId() {
@@ -42,6 +46,24 @@ public final class ActiveIndex {
 
     public boolean hasVectors() {
         return searcher.hasVectors();
+    }
+
+    /**
+     * O mapa do "cérebro" desta versão do índice (spec 08): um ponto por origem de conhecimento, perto de quem fala de coisas
+     * parecidas. É calculado na primeira vez que alguém pede e reaproveitado até o índice mudar.
+     */
+    public List<BrainLayout.Node> brainLayout() {
+        List<BrainLayout.Node> layout = brainLayout;
+        if (layout == null) {
+            synchronized (this) {
+                layout = brainLayout;
+                if (layout == null) {
+                    layout = BrainLayout.of(chunks, embeddings);
+                    brainLayout = layout;
+                }
+            }
+        }
+        return layout;
     }
 
     public int chunkCount() {

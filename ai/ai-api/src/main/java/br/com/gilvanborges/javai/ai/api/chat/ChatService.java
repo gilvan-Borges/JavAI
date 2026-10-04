@@ -3,6 +3,7 @@ package br.com.gilvanborges.javai.ai.api.chat;
 import br.com.gilvanborges.javai.ai.api.index.ActiveIndex;
 import br.com.gilvanborges.javai.ai.api.index.IndexHolder;
 import br.com.gilvanborges.javai.ai.api.index.QueryEmbedder;
+import br.com.gilvanborges.javai.ai.api.usage.HeatStore;
 import br.com.gilvanborges.javai.ai.api.usage.LatencyStats;
 import br.com.gilvanborges.javai.ai.api.usage.UsageRecorder;
 import br.com.gilvanborges.javai.ai.api.web.RateLimiter;
@@ -58,11 +59,19 @@ public class ChatService {
     private final QueryEmbedder embedder;
     private final Clock clock;
     private final AnswerCache cache;
+    private final HeatStore heat;
     private final LatencyStats latencies = new LatencyStats();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
 
     public ChatService(ChatProperties props, Turnstile turnstile, QuestionClassifier classifier, ChatModel model,
                        HistorySigner signer, Keys keys, UsageRecorder usage, IndexHolder index, QueryEmbedder embedder, Clock clock) {
+        this(props, turnstile, classifier, model, signer, keys, usage, index, embedder, clock, HeatStore.NOOP);
+    }
+
+    /** @param heat contadores do "cérebro" (spec 08): só origens de conhecimento, nunca o texto da pergunta */
+    public ChatService(ChatProperties props, Turnstile turnstile, QuestionClassifier classifier, ChatModel model,
+                       HistorySigner signer, Keys keys, UsageRecorder usage, IndexHolder index, QueryEmbedder embedder, Clock clock,
+                       HeatStore heat) {
         this.props = props;
         this.turnstile = turnstile;
         this.classifier = classifier;
@@ -77,6 +86,7 @@ public class ChatService {
         this.embedder = embedder;
         this.clock = clock;
         this.cache = new AnswerCache(clock);
+        this.heat = heat;
     }
 
     /** Visitantes bloqueados agora (para a página de admin). */
@@ -258,7 +268,7 @@ public class ChatService {
         sink.send("sources", cited);
         if (cacheKey != null) {
             cache.put(cacheKey, new AnswerCache.Entry(text, cited, used.model(),
-                    (String) meta.get("category"), (String) meta.get("tier")));
+                    (String) meta.get("category"), (String) meta.get("tier"), refsOf(found.value().hits())));
         }
         ChatRequest.Turn turn = signer.sign(turnId, request.question(), text);
         var usageOut = new LinkedHashMap<String, Object>();
@@ -268,7 +278,28 @@ public class ChatService {
         usageOut.put("tokensOut", used.tokensOut());
         usageOut.put("model", used.model());
         usage.answer(used.model(), used.tokensIn(), used.tokensOut(), used.costUsd(), latency, false);
+        recordHeat(refsOf(found.value().hits()));
         sink.send("done", Map.of("turn", turn, "usage", usageOut));
+    }
+
+    /**
+     * Soma no "cérebro" por onde a busca andou nesta resposta. Só as ORIGENS dos trechos que a busca escolheu (conteúdo
+     * público do índice): nunca a pergunta, a resposta, o IP ou o horário, e os trechos fixos (perfil, experiência) ficam de
+     * fora, porque entram em toda resposta e não dizem nada sobre o interesse. Falhar aqui nunca afeta quem perguntou.
+     */
+    private void recordHeat(List<String> refs) {
+        if (refs.isEmpty()) {
+            return;
+        }
+        try {
+            heat.record(LocalDate.now(clock), refs);
+        } catch (RuntimeException e) {
+            LOG.warn("Não consegui gravar o contador do cérebro ({}).", e.getClass().getSimpleName());
+        }
+    }
+
+    static List<String> refsOf(List<HybridSearcher.Hit> hits) {
+        return hits.stream().map(h -> h.chunk().sourceRef()).distinct().toList();
     }
 
     /** Reapresenta uma resposta do cache com os mesmos eventos de uma nova; só o turn é assinado na hora. */
@@ -285,6 +316,7 @@ public class ChatService {
             return;
         }
         sink.send("sources", entry.sources());
+        recordHeat(entry.refs());
         int latency = elapsedMs(started);
         usage.answer(entry.model(), 0, 0, BigDecimal.ZERO, latency, false);
         var usageOut = new LinkedHashMap<String, Object>();

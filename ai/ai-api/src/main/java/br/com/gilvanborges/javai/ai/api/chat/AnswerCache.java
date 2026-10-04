@@ -22,7 +22,11 @@ import java.util.Optional;
 final class AnswerCache {
 
     /** O que é preciso para reapresentar a resposta como se fosse nova (menos o turn, que é assinado na hora). */
-    record Entry(String text, List<Map<String, Object>> sources, String model, String category, String tier) {
+    record Entry(String text, List<Map<String, Object>> sources, String model, String category, String tier, List<String> refs) {
+        /** Sem as origens (testes e usos antigos): a resposta do cache não soma no calor do cérebro. */
+        Entry(String text, List<Map<String, Object>> sources, String model, String category, String tier) {
+            this(text, sources, model, category, tier, List.of());
+        }
     }
 
     private record Timed(Entry entry, Instant until) {

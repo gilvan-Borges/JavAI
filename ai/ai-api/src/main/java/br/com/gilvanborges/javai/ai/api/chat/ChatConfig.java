@@ -2,7 +2,9 @@ package br.com.gilvanborges.javai.ai.api.chat;
 
 import br.com.gilvanborges.javai.ai.api.index.IndexHolder;
 import br.com.gilvanborges.javai.ai.api.index.QueryEmbedder;
+import br.com.gilvanborges.javai.ai.api.usage.HeatStore;
 import br.com.gilvanborges.javai.ai.api.usage.UsageRecorder;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -44,14 +46,14 @@ public class ChatConfig implements WebMvcConfigurer {
 
     @Bean
     ChatService chatService(Keys keys, HistorySigner signer, UsageRecorder usage, IndexHolder index, QueryEmbedder embedder,
-                            Clock clock) {
+                            Clock clock, ObjectProvider<HeatStore> heat) {
         HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
         return new ChatService(props,
                 new Turnstile(http, props.turnstileUrl(), props.turnstileSecret(), props.turnstileHostnames()),
                 new JevClassifier(http, props.jevUrl(), props.openrouterKey(), Duration.ofMillis(props.jevTimeoutMs() + 700L)),
                 new OpenRouterClient(http, props.openrouterBase(), props.openrouterKey(), props.maxTokens(),
                         props.maxPriceCompletion(), props.zdr(), props.reasoningEffort()),
-                signer, keys, usage, index, embedder, clock);
+                signer, keys, usage, index, embedder, clock, heat.getIfAvailable(() -> HeatStore.NOOP));
     }
 
     @Override

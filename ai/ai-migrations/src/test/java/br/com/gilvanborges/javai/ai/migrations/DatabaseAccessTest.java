@@ -290,6 +290,39 @@ class DatabaseAccessTest {
                 + embedding + ", 'hash')";
     }
 
+    @Test
+    void teste20_cerebro_so_o_reader_grava_e_a_chave_e_a_origem_do_trecho() throws SQLException {
+        try (var reader = as(db.reader()); var indexer = as(db.indexer())) {
+            update(reader, "INSERT INTO ops.knowledge_heat (day, source_ref, hits) VALUES (current_date, 'repo_readme:dono/x:README.md:Arquitetura', 2)");
+            update(reader, "UPDATE ops.knowledge_heat SET hits = hits + 1");
+            assertThat(count(reader, "SELECT hits FROM ops.knowledge_heat")).isEqualTo(3);
+            update(reader, "INSERT INTO ops.knowledge_pair (day, source_a, source_b, hits) VALUES (current_date, 'a', 'b', 1)");
+            assertThat(count(reader, "SELECT count(*) FROM ops.knowledge_pair")).isEqualTo(1);
+            // O indexador não enxerga nem escreve nos contadores.
+            assertSqlState(SEM_PERMISSAO, () -> count(indexer, "SELECT count(*) FROM ops.knowledge_heat"));
+            assertSqlState(SEM_PERMISSAO, () -> update(indexer, "INSERT INTO ops.knowledge_pair (day, source_a, source_b) VALUES (current_date, 'a', 'c')"));
+            // Ninguém apaga o histórico (nem o reader): só soma.
+            assertSqlState(SEM_PERMISSAO, () -> update(reader, "DELETE FROM ops.knowledge_heat"));
+        }
+    }
+
+    @Test
+    void teste21_cerebro_par_tem_uma_linha_por_combinacao_e_origem_limitada() throws SQLException {
+        try (var reader = as(db.reader())) {
+            update(reader, "INSERT INTO ops.knowledge_pair (day, source_a, source_b, hits) VALUES (current_date, 'a', 'b', 1)");
+            // (b, a) seria a mesma combinação escrita ao contrário: o CHECK source_a < source_b obriga uma só forma.
+            assertSqlState(CHECK_VIOLADO, () -> update(reader, "INSERT INTO ops.knowledge_pair (day, source_a, source_b) VALUES (current_date, 'b', 'a')"));
+            assertSqlState(CHECK_VIOLADO, () -> update(reader, "INSERT INTO ops.knowledge_pair (day, source_a, source_b) VALUES (current_date, 'a', 'a')"));
+            assertSqlState(UNICO_VIOLADO, () -> update(reader, "INSERT INTO ops.knowledge_pair (day, source_a, source_b) VALUES (current_date, 'a', 'b')"));
+            // A ordem é a do Java (por código de caractere, maiúscula antes de minúscula), qualquer que seja o idioma do banco.
+            update(reader, "INSERT INTO ops.knowledge_pair (day, source_a, source_b, hits) VALUES (current_date, 'Zeta', 'alfa', 1)");
+            assertSqlState(CHECK_VIOLADO, () -> update(reader, "INSERT INTO ops.knowledge_pair (day, source_a, source_b) VALUES (current_date, 'alfa', 'Zeta')"));
+            // Texto longo (uma pergunta colada no lugar da origem) não cabe: o limite é de 300 caracteres.
+            assertSqlState(CHECK_VIOLADO, () -> update(reader, "INSERT INTO ops.knowledge_heat (day, source_ref) VALUES (current_date, repeat('x', 301))"));
+            assertSqlState(CHECK_VIOLADO, () -> update(reader, "INSERT INTO ops.knowledge_heat (day, source_ref, hits) VALUES (current_date, 'ok', -1)"));
+        }
+    }
+
     private static long count(Connection c, String sql) throws SQLException {
         try (var st = c.createStatement(); var rs = st.executeQuery(sql)) {
             rs.next();

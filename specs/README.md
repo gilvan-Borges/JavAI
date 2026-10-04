@@ -12,6 +12,7 @@ O JavAI segue Spec-Driven Development. Toda mudança de direção entra primeiro
 | 05 | [Avaliação](05-avaliacao.md) | Bateria, verificador, juiz, busca, guarda, modelos, critérios para lançar | Implementada |
 | 06 | [Base acadêmica](06-base-academica.md) | As duas ementas de pós como régua: mapa tema → código, divergências e pendências | Aprovada |
 | 07 | [Controlei](07-controlei.md) | Finanças familiares em Java 25 + Angular, com IA na leitura de comprovantes. Repositório próprio, mesma régua | Aprovada |
+| 08 | [Cérebro](08-cerebro.md) | A IA que não chuta (atividade entre repositórios, dossiê, regra de comparação) e o mapa de calor do conhecimento, sem expor perguntas | Aprovada |
 
 ## Status de uma spec
 

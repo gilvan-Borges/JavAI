@@ -107,7 +107,7 @@ https://api.gilvanborges.com.br {
 		}
 	}
 
-	@ai path /mcp /health /v1/chat /v1/stats
+	@ai path /mcp /health /v1/chat /v1/stats /v1/brain /v1/brain/probe
 	handle @ai {
 		# Só a porta 8080. O actuator, na 8081, nunca é roteado.
 		reverse_proxy ai-api:8080 {
