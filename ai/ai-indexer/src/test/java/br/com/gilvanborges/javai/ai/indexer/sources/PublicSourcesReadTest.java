@@ -96,5 +96,7 @@ class PublicSourcesReadTest {
         assertThat(PublicSources.documentLabel("https://x.example/resume.pdf")).isEqualTo("Currículo (CV, resume)");
         assertThat(PublicSources.documentLabel("https://x.example/certificado.pdf")).isEqualTo("Documento");
         assertThat(PublicSources.documentLabel("https://x.example/cvs-projeto.txt")).isEqualTo("Documento");
+        assertThat(PublicSources.documentLabel("https://x.example/documentos/linkedin.md"))
+                .isEqualTo("LinkedIn (perfil, experiência e publicações)");
     }
 }

@@ -36,6 +36,11 @@ public class PublicSources {
     /** Nome de arquivo com cara de currículo ({@code Fulano_CV.pdf}, {@code curriculo.pdf}, {@code resume.pdf}). */
     private static final java.util.regex.Pattern RESUME_FILE =
             java.util.regex.Pattern.compile("(?i)(^|[^a-z])(cv|curr[ií]culo|curriculum|resume|r[ée]sum[ée])([^a-z]|$)");
+    /**
+     * Texto exportado do LinkedIn e publicado no site ({@code linkedin.md}): o LinkedIn não deixa ler o perfil
+     * automaticamente, então o dono exporta os dados e publica o texto como documento.
+     */
+    private static final java.util.regex.Pattern LINKEDIN_FILE = java.util.regex.Pattern.compile("(?i)linkedin");
 
     /**
      * @param chunks      os trechos de todas as fontes que deram certo
@@ -118,12 +123,15 @@ public class PublicSources {
     /**
      * Como o documento aparece no título dos trechos. O título entra na busca: o PDF do currículo quase nunca traz a
      * palavra "currículo", então um arquivo com cara de currículo no nome ganha esse rótulo, e quem pergunta pelo
-     * currículo (ou CV, ou resume) cai nele.
+     * currículo (ou CV, ou resume) cai nele. O mesmo vale para o texto exportado do LinkedIn.
      */
     static String documentLabel(String url) {
         String path = java.net.URI.create(url).getPath();
         String file = path == null ? "" : path.substring(path.lastIndexOf('/') + 1);
-        return RESUME_FILE.matcher(file).find() ? "Currículo (CV, resume)" : "Documento";
+        if (RESUME_FILE.matcher(file).find()) {
+            return "Currículo (CV, resume)";
+        }
+        return LINKEDIN_FILE.matcher(file).find() ? "LinkedIn (perfil, experiência e publicações)" : "Documento";
     }
 
     private void githubUser(String user, List<Chunk> chunks, Map<String, String> hashes, List<Map<String, Object>> status,
