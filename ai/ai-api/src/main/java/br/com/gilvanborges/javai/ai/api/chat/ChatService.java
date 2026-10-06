@@ -45,6 +45,8 @@ public class ChatService {
     private static final Logger LOG = LoggerFactory.getLogger(ChatService.class);
     private static final Pattern CITATION = Pattern.compile("\\[(\\d+)]");
     private static final int SOURCES = 5;
+    /** O começo do título dos trechos do currículo, dado pelo indexador. */
+    static final String RESUME_TITLE = "Currículo";
 
     private final ChatProperties props;
     private final Turnstile turnstile;
@@ -201,9 +203,9 @@ public class ChatService {
         sink.send("trace", searchTrace);
         latencies.record("search", found.ms());
 
-        List<Chunk> sources = withActivity(
+        List<Chunk> sources = withResume(withActivity(
                 withAnchors(found.value().hits().stream().map(HybridSearcher.Hit::chunk).toList(), active, lang, decision),
-                active, lang, request.question());
+                active, lang, request.question()), active, request.question());
         String canary = keys.canary(PromptBuilder.VERSION);
         PromptBuilder.Prompt prompt = PromptBuilder.build(request.question(), lang, sources, history, canary);
         List<String> models = decision.tier() == Router.Tier.FORTE ? props.modelsStrong() : props.modelsFast();
@@ -371,6 +373,29 @@ public class ChatService {
         var all = new ArrayList<Chunk>(active.chunks().stream()
                 .filter(c -> c.kind() == SourceKind.GITHUB_PROFILE && c.sourceRef().startsWith("github-activity:")
                         && c.lang().equals(lang))
+                .toList());
+        if (all.isEmpty()) {
+            return chunks;
+        }
+        for (Chunk c : chunks) {
+            if (all.stream().noneMatch(a -> a.id().equals(c.id()))) {
+                all.add(c);
+            }
+        }
+        return List.copyOf(all);
+    }
+
+    /**
+     * Pergunta sobre o currículo: todos os trechos do PDF (título "Currículo", ver {@code PublicSources.documentLabel})
+     * entram na frente, em ordem, para um pedido de resumo ver o documento inteiro. Vale em qualquer idioma: há um
+     * currículo só, e a estimativa de idioma por trecho erra em texto curto de PDF.
+     */
+    static List<Chunk> withResume(List<Chunk> chunks, ActiveIndex active, String question) {
+        if (!ResumeIntent.matches(question)) {
+            return chunks;
+        }
+        var all = new ArrayList<Chunk>(active.chunks().stream()
+                .filter(c -> c.kind() == SourceKind.DOCUMENT && c.title().startsWith(RESUME_TITLE))
                 .toList());
         if (all.isEmpty()) {
             return chunks;
