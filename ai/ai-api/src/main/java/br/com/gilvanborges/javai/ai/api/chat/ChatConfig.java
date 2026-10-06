@@ -62,6 +62,8 @@ public class ChatConfig implements WebMvcConfigurer {
                 .allowedOrigins(props.corsOrigin())
                 .allowedMethods("GET", "POST", "OPTIONS")
                 .allowedHeaders("Content-Type")
+                // Sem isto o navegador esconde o Retry-After da página, e as contagens de "tente em X s" nunca aparecem.
+                .exposedHeaders("Retry-After")
                 .allowCredentials(false)
                 .maxAge(600);
         // O ponto verde do terminal do portfólio faz GET /health do navegador: sem este cabeçalho a resposta fica

@@ -29,6 +29,8 @@ class PublicSourcesReadTest {
                 + "{\"name\":\"estudo\",\"full_name\":\"gilvan/estudo\",\"description\":\"x\",\"fork\":false,\"archived\":false},"
                 + "{\"name\":\"f\",\"full_name\":\"gilvan/f\",\"description\":\"fork\",\"fork\":true,\"archived\":false}]"));
         server.createContext("/repos/gilvan/gilvan/readme", ex -> send(ex, 404, "{}"));
+        // SPA: arquivo inexistente responde a página inicial com 200
+        server.createContext("/sumiu.txt", ex -> send(ex, 200, "<!DOCTYPE html><html><head><title>Site</title></head><body><div id=\"root\">Ver projetos</div></body></html>"));
         server.start();
         base = "http://127.0.0.1:" + server.getAddress().getPort();
     }
@@ -87,6 +89,21 @@ class PublicSourcesReadTest {
         var src = sources(props);
 
         assertThat(src.read().hashes()).isEqualTo(src.read().hashes());
+    }
+
+    @Test
+    void arquivo_de_texto_que_volta_como_html_da_spa_vira_erro_e_nao_entra_no_indice() {
+        var props = new SourcesProperties(List.of(base + "/sumiu.txt"), null, null, null, false, null, 30, "", "", Duration.ofMinutes(30));
+
+        var read = sources(props).read();
+
+        assertThat(read.chunks()).isEmpty();
+        assertThat(read.status()).singleElement().satisfies(row -> {
+            assertThat(row.get("estado")).isEqualTo("erro");
+            assertThat(String.valueOf(row.get("aviso"))).contains("HTML");
+        });
+        assertThat(PublicSources.expectsPlainText("https://x.example/llms-full.txt")).isTrue();
+        assertThat(PublicSources.expectsPlainText("https://x.example/sobre")).isFalse();
     }
 
     @Test

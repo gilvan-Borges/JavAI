@@ -29,6 +29,20 @@ public class OpenRouterClient implements ChatModel {
     /** Tentativas por pergunta. O retry só acontece antes do primeiro pedaço chegar: depois disso repetiria texto. */
     private static final int ATTEMPTS = 3;
     private static final Duration[] BACKOFF = {Duration.ofMillis(400), Duration.ofMillis(1200)};
+    /**
+     * Prazo total da resposta, somando as tentativas e a leitura do stream. Cabe dentro do tempo do stream do chat
+     * ({@code ChatController.STREAM_TIMEOUT_MS}), com folga para classificar, buscar e fechar a guarda de saída.
+     */
+    static final Duration TOTAL_BUDGET = Duration.ofSeconds(70);
+    /** Espera máxima pelos cabeçalhos da resposta em cada tentativa. */
+    static final Duration HEADERS_TIMEOUT = Duration.ofSeconds(20);
+    /** Fecha a conexão com o provedor quando o prazo acaba: é o que destrava um readLine parado. */
+    private static final java.util.concurrent.ScheduledExecutorService DEADLINES =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "openrouter-deadline");
+                t.setDaemon(true);
+                return t;
+            });
 
     private final HttpClient http;
     private final String baseUrl;
@@ -37,9 +51,17 @@ public class OpenRouterClient implements ChatModel {
     private final BigDecimal maxPriceCompletion;
     private final boolean zdr;
     private final String reasoningEffort;
+    private final Duration budget;
 
     public OpenRouterClient(HttpClient http, String baseUrl, String key, int maxTokens, BigDecimal maxPriceCompletion, boolean zdr,
                             String reasoningEffort) {
+        this(http, baseUrl, key, maxTokens, maxPriceCompletion, zdr, reasoningEffort, TOTAL_BUDGET);
+    }
+
+    /** Com prazo total próprio: os testes usam um prazo curto para não esperar o de produção. */
+    OpenRouterClient(HttpClient http, String baseUrl, String key, int maxTokens, BigDecimal maxPriceCompletion, boolean zdr,
+                     String reasoningEffort, Duration budget) {
+        this.budget = budget;
         this.http = http;
         this.baseUrl = baseUrl;
         this.key = key;
@@ -54,20 +76,22 @@ public class OpenRouterClient implements ChatModel {
         // Falha transitória (rede, 408, 429, 5xx) é retentada com espera crescente, mas SÓ enquanto nenhum pedaço
         // foi entregue: retentar depois disso duplicaria texto na tela. Erro de configuração (401, 402...) não retenta.
         boolean[] delivered = {false};
+        long deadline = System.nanoTime() + budget.toNanos();
         IOException last = null;
         for (int attempt = 1; attempt <= ATTEMPTS; attempt++) {
             try {
-                return attempt(prompt, models, delta -> {
+                return attempt(prompt, models, deadline, delta -> {
                     delivered[0] = true;
                     return onDelta.test(delta);
                 });
             } catch (RetryableException e) {
                 last = e;
-                if (delivered[0] || attempt == ATTEMPTS) {
+                Duration wait = attempt < ATTEMPTS ? BACKOFF[attempt - 1] : Duration.ZERO;
+                if (delivered[0] || attempt == ATTEMPTS || remaining(deadline).compareTo(wait.plusSeconds(2)) < 0) {
                     throw e;
                 }
                 try {
-                    Thread.sleep(BACKOFF[attempt - 1]);
+                    Thread.sleep(wait);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw new IOException("Interrompido.", ie);
@@ -84,9 +108,19 @@ public class OpenRouterClient implements ChatModel {
         }
     }
 
-    private Usage attempt(PromptBuilder.Prompt prompt, List<String> models, Predicate<String> onDelta) throws IOException {
+    private static Duration remaining(long deadline) {
+        long nanos = deadline - System.nanoTime();
+        return nanos <= 0 ? Duration.ZERO : Duration.ofNanos(nanos);
+    }
+
+    private Usage attempt(PromptBuilder.Prompt prompt, List<String> models, long deadline, Predicate<String> onDelta)
+            throws IOException {
+        Duration left = remaining(deadline);
+        if (left.isZero()) {
+            throw new IOException("O modelo passou do prazo total.");
+        }
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/chat/completions"))
-                .timeout(Duration.ofSeconds(45))
+                .timeout(left.compareTo(HEADERS_TIMEOUT) < 0 ? left : HEADERS_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + key)
                 .header("X-Title", "JavAI")
@@ -115,8 +149,20 @@ public class OpenRouterClient implements ChatModel {
         long in = 0;
         long out = 0;
         BigDecimal cost = BigDecimal.ZERO;
-        // Fechar o reader fecha a conexão: é assim que o cancelamento chega ao provedor.
-        try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+        // Fechar o reader fecha a conexão: é assim que o cancelamento chega ao provedor. O mesmo fechamento, agendado
+        // para o fim do prazo, destrava um stream parado (o provedor manda comentários de keep-alive indefinidamente).
+        var body = response.body();
+        var expired = new java.util.concurrent.atomic.AtomicBoolean();
+        boolean completed = false;
+        var timer = DEADLINES.schedule(() -> {
+            expired.set(true);
+            try {
+                body.close();
+            } catch (IOException ignored) {
+                // nada a fazer: o objetivo era só derrubar a leitura
+            }
+        }, Math.max(1, remaining(deadline).toMillis()), java.util.concurrent.TimeUnit.MILLISECONDS);
+        try (var reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (!line.startsWith("data:")) {
@@ -143,6 +189,18 @@ public class OpenRouterClient implements ChatModel {
                     break;
                 }
             }
+            // Fechado pelo prazo, o stream pode terminar como fim de arquivo em vez de erro: isso não é resposta completa.
+            completed = !expired.get();
+        } catch (IOException e) {
+            if (expired.get()) {
+                throw new IOException("O modelo passou do prazo total.", e);
+            }
+            throw e;
+        } finally {
+            timer.cancel(false);
+        }
+        if (!completed && expired.get()) {
+            throw new IOException("O modelo passou do prazo total.");
         }
         return new Usage(model, in, out, cost);
     }

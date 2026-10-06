@@ -194,6 +194,37 @@ class ExternalClientsTest {
     }
 
     @Test
+    void openrouter_desiste_no_prazo_total_quando_o_stream_para_e_so_manda_keep_alive() {
+        server.createContext("/api/v1/chat/completions", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, 0);
+            var out = exchange.getResponseBody();
+            try {
+                out.write("data: {\"choices\":[{\"delta\":{\"content\":\"Olá\"}}]}\n\n".getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                for (int i = 0; i < 100; i++) { // ~10 s de keep-alive, muito além do prazo do teste
+                    out.write(": OPENROUTER PROCESSING\n\n".getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                    Thread.sleep(100);
+                }
+            } catch (IOException | InterruptedException e) {
+                // o cliente fechou a conexão no prazo: é o esperado
+            } finally {
+                exchange.close();
+            }
+        });
+        var client = new OpenRouterClient(http, base + "/api/v1", "sk-test", 300, BigDecimal.ZERO, false, "", Duration.ofMillis(800));
+        var deltas = new ArrayList<String>();
+        long started = System.nanoTime();
+
+        assertThatIOException().isThrownBy(() -> client.stream(PROMPT, List.of("m"), deltas::add))
+                .withMessageContaining("prazo");
+        assertThat(deltas).containsExactly("Olá");
+        assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(5));
+    }
+
+    @Test
     void openrouter_com_erro_http_ou_erro_no_meio_do_stream_lanca_ioexception_sem_vazar_detalhe() {
         respond("/api/v1/chat/completions", 402, "application/json", "{\"error\":{\"message\":\"segredo interno\"}}");
 

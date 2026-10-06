@@ -85,12 +85,30 @@ https://conteudo.gilvanborges.com.br {
 https://api.gilvanborges.com.br {
 	import cloudflare_tls
 	import cabecalhos
-	header {
-		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
-		Cache-Control "no-store"
-	}
+	header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+	# "?" só põe o no-store quando a resposta não trouxe Cache-Control: /v1/stats, /v1/brain e /v1/commit-map mandam
+	# o próprio (público, de minutos), e um no-store por cima anularia esse cache.
+	header ?Cache-Control "no-store"
 	request_body {
 		max_size 64KB
+	}
+
+	# Erros do próprio Caddy (o ai-api fora do ar durante um deploy, corpo grande demais) também levam CORS: sem ele
+	# o navegador esconde a resposta da página, e o portfólio mostraria "sem conexão" em vez de "em manutenção".
+	handle_errors {
+		header {
+			Access-Control-Allow-Origin "https://gilvanborges.com.br"
+			Access-Control-Expose-Headers "Retry-After"
+			Vary "Origin"
+			Cache-Control "no-store"
+		}
+		@indisponivel expression `{err.status_code} >= 502 && {err.status_code} <= 504`
+		handle @indisponivel {
+			header Retry-After "30"
+			header Content-Type "application/problem+json"
+			respond `{"type":"/problems/maintenance","title":"Maintenance","status":503,"detail":"The service is restarting. Please try again shortly."}` 503
+		}
+		respond {err.status_code}
 	}
 
 	# Página de administração da IA (só leitura, com login). Ela tem política de conteúdo própria (CSS embutido, sem

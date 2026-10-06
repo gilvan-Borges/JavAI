@@ -102,6 +102,11 @@ public class PublicSources {
             } else {
                 text = body.text();
                 if (HtmlText.looksLikeHtml(text)) {
+                    if (expectsPlainText(url)) {
+                        // Site em SPA responde a página inicial (200) para qualquer arquivo que não existe. Indexar
+                        // isso guardaria a casca vazia do site no lugar do conteúdo, sem ninguém perceber.
+                        throw new java.io.IOException("a URL devolveu HTML no lugar do arquivo de texto (o arquivo existe?)");
+                    }
                     text = HtmlText.toText(text);
                 }
             }
@@ -132,6 +137,13 @@ public class PublicSources {
             return "Currículo (CV, resume)";
         }
         return LINKEDIN_FILE.matcher(file).find() ? "LinkedIn (perfil, experiência e publicações)" : "Documento";
+    }
+
+    /** URL de arquivo de texto ({@code .txt}, {@code .md}): a resposta precisa ser texto, nunca uma página HTML. */
+    static boolean expectsPlainText(String url) {
+        String path = java.net.URI.create(url).getPath();
+        String lower = path == null ? "" : path.toLowerCase(java.util.Locale.ROOT);
+        return lower.endsWith(".txt") || lower.endsWith(".md");
     }
 
     private void githubUser(String user, List<Chunk> chunks, Map<String, String> hashes, List<Map<String, Object>> status,

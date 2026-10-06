@@ -73,12 +73,23 @@ GET https://conteudo.gilvanborges.com.br/v1/snapshot/en.json
 
 ### CORS
 
-- **Só nas rotas `/v1/*`.**
+- **Nas rotas `/v1/*` e no `GET /health`** (o ponto verde do terminal).
 - **Origem permitida:** `https://gilvanborges.com.br`.
 - **Métodos:** `GET`, `POST`, `OPTIONS`.
 - **Cabeçalhos:** só `Content-Type`.
+- **Cabeçalho exposto:** `Retry-After`. Sem isso o navegador o esconde da página, e as contagens de espera não aparecem.
 - **Sem credenciais.**
 - **`Max-Age`:** 600.
+- **Erros do proxy também levam CORS.** Quando o ai-api está fora do ar (deploy), o Caddy responde `503`
+  `application/problem+json` com `type` `/problems/maintenance` e `Retry-After: 30`, para o portfólio mostrar
+  "em manutenção" em vez de "sem conexão".
+
+### Duração do stream
+
+O stream do chat dura no máximo 90 s. O modelo tem um prazo total de 70 s (tentativas e leitura somadas) e, enquanto
+ele pensa, sai um comentário SSE (`: hb`) a cada 15 s, que o cliente ignora. Se o tempo estourar, o último evento é um
+`error`. Todo stream termina com `done`, `refusal`, `retract` ou `error`: o cliente trata um stream sem nenhum deles
+como resposta interrompida, nunca como resposta completa.
 
 O CORS não protege a API: um `curl` ignora CORS. Quem protege é o Turnstile, o rate limit e o teto de gasto.
 
