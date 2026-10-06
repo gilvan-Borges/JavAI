@@ -71,6 +71,6 @@ class ChatActivityAnchorTest {
         var prompt = PromptBuilder.build("qual o último commit?", "pt", List.of(ACTIVITY_PT), List.of(), "CNRY-x");
 
         assertThat(prompt.system()).contains("superlatives and comparisons").contains("not all of his work");
-        assertThat(PromptBuilder.VERSION).isEqualTo("v2");
+        assertThat(PromptBuilder.VERSION).isEqualTo("v3");
     }
 }

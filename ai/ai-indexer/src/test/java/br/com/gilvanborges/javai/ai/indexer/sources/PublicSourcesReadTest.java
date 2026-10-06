@@ -88,4 +88,13 @@ class PublicSourcesReadTest {
 
         assertThat(src.read().hashes()).isEqualTo(src.read().hashes());
     }
+
+    @Test
+    void documento_com_nome_de_curriculo_vira_curriculo_no_titulo_para_a_busca_achar() {
+        assertThat(PublicSources.documentLabel("https://x.example/Gilvan_Borges_CV.pdf")).isEqualTo("Currículo (CV, resume)");
+        assertThat(PublicSources.documentLabel("https://x.example/docs/curriculo-2026.pdf")).isEqualTo("Currículo (CV, resume)");
+        assertThat(PublicSources.documentLabel("https://x.example/resume.pdf")).isEqualTo("Currículo (CV, resume)");
+        assertThat(PublicSources.documentLabel("https://x.example/certificado.pdf")).isEqualTo("Documento");
+        assertThat(PublicSources.documentLabel("https://x.example/cvs-projeto.txt")).isEqualTo("Documento");
+    }
 }

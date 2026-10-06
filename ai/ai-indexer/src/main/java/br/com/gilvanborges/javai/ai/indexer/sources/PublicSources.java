@@ -33,6 +33,9 @@ public class PublicSources {
     private static final Logger LOG = LoggerFactory.getLogger(PublicSources.class);
     /** Prefixo da chave, no registro da versão, que guarda o hash do que foi lido de cada fonte. */
     public static final String HASH_KEY = "src:";
+    /** Nome de arquivo com cara de currículo ({@code Fulano_CV.pdf}, {@code curriculo.pdf}, {@code resume.pdf}). */
+    private static final java.util.regex.Pattern RESUME_FILE =
+            java.util.regex.Pattern.compile("(?i)(^|[^a-z])(cv|curr[ií]culo|curriculum|resume|r[ée]sum[ée])([^a-z]|$)");
 
     /**
      * @param chunks      os trechos de todas as fontes que deram certo
@@ -73,7 +76,7 @@ public class PublicSources {
             document(SourceKind.SITE, "Site", url, chunks, hashes, status);
         }
         for (String url : properties.documents()) {
-            document(SourceKind.DOCUMENT, "Documento", url, chunks, hashes, status);
+            document(SourceKind.DOCUMENT, documentLabel(url), url, chunks, hashes, status);
         }
         for (String user : properties.githubUsers()) {
             githubUser(user, chunks, hashes, status, repos);
@@ -110,6 +113,17 @@ public class PublicSources {
             LOG.warn("Fonte {} falhou: {}", url, e.getClass().getSimpleName());
             status.add(row(kind, url, "erro", 0, describe(e)));
         }
+    }
+
+    /**
+     * Como o documento aparece no título dos trechos. O título entra na busca: o PDF do currículo quase nunca traz a
+     * palavra "currículo", então um arquivo com cara de currículo no nome ganha esse rótulo, e quem pergunta pelo
+     * currículo (ou CV, ou resume) cai nele.
+     */
+    static String documentLabel(String url) {
+        String path = java.net.URI.create(url).getPath();
+        String file = path == null ? "" : path.substring(path.lastIndexOf('/') + 1);
+        return RESUME_FILE.matcher(file).find() ? "Currículo (CV, resume)" : "Documento";
     }
 
     private void githubUser(String user, List<Chunk> chunks, Map<String, String> hashes, List<Map<String, Object>> status,
